@@ -1,0 +1,27 @@
+[
+  {
+    "id": 1,
+    "name": "Chat with Ollama",
+    "datetime": "2025-07-16T10:00:00Z",
+    "messages": [
+      { "user": "Hello, who are you?", "ai": "I am Ollama, your AI assistant.", "datetime": "2025-07-16T10:01:00Z" },
+      { "user": "Tell me a joke.", "ai": "Why did the scarecrow win an award? Because he was outstanding in his field!", "datetime": "2025-07-16T10:02:00Z" }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Work Session",
+    "datetime": "2025-07-15T15:30:00Z",
+    "messages": [
+      { "user": "Summarize today's meeting.", "ai": "The meeting covered project updates and next steps.", "datetime": "2025-07-15T15:31:00Z" }
+    ]
+  },
+  {
+    "id": 3,
+    "name": "Ideas",
+    "datetime": "2025-07-14T09:00:00Z",
+    "messages": [
+      { "user": "Give me startup ideas.", "ai": "How about an AI-powered health tracker?", "datetime": "2025-07-14T09:01:00Z" }
+    ]
+  }
+]
