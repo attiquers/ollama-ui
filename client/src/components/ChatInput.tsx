@@ -35,7 +35,7 @@ export default function ChatInput({ onSend }: { onSend: (text: string) => void }
   }, [input]);
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col p-4 ">
+    <form onSubmit={handleSubmit} className="flex flex-col ">
       <div className="bg-gray-700 px-4 py-2 rounded-xl flex items-end gap-2 w-full">
         <textarea
           ref={textareaRef}

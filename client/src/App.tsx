@@ -3,7 +3,7 @@ import ChatHistory from '@/components/ChatHistory';
 import ChatInput from '@/components/ChatInput';
 import SideBar from '@/components/SideBar';
 import CurrentHistory from '@/components/CurrentHistory';
-import { useSelectedChat } from '@/components/useSelectedChat';
+import chatsDataJson from './dummyChats.json';
 // import { Message } from '@/types';
 type Message = {
   role: 'user' | 'assistant';
@@ -11,10 +11,13 @@ type Message = {
 };
 
 
+
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const { selectedChat, setSelectedChatId, chatsData } = useSelectedChat();
+  const [chatsData] = useState<any[]>(chatsDataJson);
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
+  const selectedChat = chatsData.find((c: any) => c.id === selectedChatId) ?? null;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -48,26 +51,30 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen min-w-screen w-full bg-gray-800 flex flex-col items-center justify-center">
-      <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChat?.id} chats={chatsData}  />
-      {selectedChat ? (
-        <CurrentHistory messages={selectedChat.messages.flatMap(m => [
-          { role: 'user' as const, content: m.user },
-          { role: 'assistant' as const, content: m.ai }
-        ])} />
-      ) : (
-        <div className="flex flex-col items-center w-full">
-          <div>
-            <img src="ollama.svg" alt="Ollama Logo" className='h-50 pb-4' />
-          </div>
-          <div className="mb-8 text-center">
-            <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
-          </div>
+    <div className="min-h-screen min-w-screen bg-gray-800 flex flex-row">
+      <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
+      <div className="flex-1 flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center justify-center w-[60vw] min-h-screen relative">
+          {selectedChat ? (
+            <CurrentHistory messages={selectedChat.messages.flatMap((m: any) => [
+              { role: 'user' as const, content: m.user },
+              { role: 'assistant' as const, content: m.ai }
+            ])} />
+          ) : (
+            <div className="flex flex-col items-center w-full">
+              <div>
+                <img src="ollama.svg" alt="Ollama Logo" className='h-50 pb-4' />
+              </div>
+              <div className="mb-8 text-center">
+                <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
+              </div>
+            </div>
+          )}
+          <footer className='absolute bottom-2 w-full'>
+            <ChatInput onSend={sendMessage} />
+          </footer>
         </div>
-      )}
-      <footer className='w-[60vw] absolute bottom-0 '>
-        <ChatInput onSend={sendMessage} />
-      </footer>
+      </div>
     </div>
   );
 }

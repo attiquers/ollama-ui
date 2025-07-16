@@ -6,6 +6,7 @@ type ChatListItem = {
   id: number;
   name: string;
   datetime: string;
+  messages: any[];
 };
 
 type SideBarProps = {
@@ -49,23 +50,58 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
       >
         {/* Absolute icons and labels, only text disappears on collapse, icons always visible */}
         <div className={`absolute left-4 top-0 flex flex-col w-64 h-full py-6 gap-6 ${open ? 'overflow-y-auto' : 'overflow-hidden'}`} style={{ zIndex: 2 }}>
-          <button id="sidebar-btn" className="text-white flex items-center gap-3" onClick={() => setOpen(!open)} aria-label="Toggle sidebar">
+          <button
+            id="sidebar-btn"
+            className={`text-white flex items-center gap-3 relative group`}
+            onClick={() => setOpen(!open)}
+            aria-label="Toggle sidebar"
+          >
             {open ? <MdClose size={28} /> : <MdHistory size={28} />}
             <span className="text-base text-white ml-2">History</span>
+            {!open && (
+              <span
+                className="absolute left-full top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap ml-2 pointer-events-none"
+                style={{ zIndex: 99999, position: 'fixed' }}
+              >
+                Open/Close Sidebar
+              </span>
+            )}
           </button>
-          <button className="text-white flex items-center gap-3" onClick={() => { setSelectedChatId(null); setOpen(true); }} aria-label="New Chat">
+          <button
+            className={`text-white flex items-center gap-3 relative group`}
+            onClick={() => { setSelectedChatId(null); }}
+            aria-label="New Chat"
+          >
             <MdAdd size={28} />
             <span className="text-base text-white ml-2">New Chat</span>
+            {!open && (
+              <span
+                className="absolute left-full top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap ml-2 pointer-events-none z-50"
+              >
+                Start a new chat
+              </span>
+            )}
           </button>
-          <button className="text-white flex items-center gap-3" aria-label="Search">
+          <button
+            className={`text-white flex items-center gap-3 relative group`}
+            aria-label="Search"
+          >
             <MdSearch size={28} />
             <span className="text-base text-white ml-2">Search</span>
+            {!open && (
+              <span
+                className="absolute left-full top-1/2 -translate-y-1/2 bg-gray-900 text-white text-xs rounded px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap ml-2 pointer-events-none"
+                style={{ zIndex: 99999, position: 'fixed' }}
+              >
+                Search chats
+              </span>
+            )}
           </button>
         </div>
         {/* Chat History title and chat list, both disappear when sidebar is collapsed */}
         <div
           className={`absolute left-0 top-40 w-full transition-opacity duration-500 ${open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-          style={{ zIndex: 0 }}
+          style={{ zIndex: 50 }}
         >
           <div className="p-4 border-b border-gray-800 text-xl font-bold text-white whitespace-nowrap">Chat History</div>
           <ul className="p-2">

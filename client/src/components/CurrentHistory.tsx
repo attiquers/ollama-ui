@@ -6,7 +6,7 @@ type Message = {
 };
 export default function CurrentHistory({ messages }: { messages: Message[] }) {
   return (
-    <div className="flex flex-col w-full max-w-2xl overflow-hidden  ">
+    <div className="flex flex-col w-full overflow-hidden ">
       <ChatHistory messages={messages} />
     </div>
   );
