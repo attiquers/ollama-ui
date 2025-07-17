@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import ChatHistory from '@/components/ChatHistory';
+import axios from 'axios';
 import ChatInput from '@/components/ChatInput';
+import Header from '@/components/Header';
 import SideBar from '@/components/SideBar';
 import CurrentHistory from '@/components/CurrentHistory';
-import chatsDataJson from './dummyChats.json';
+// import chatsDataJson from './dummyChats.json';
 // import { Message } from '@/types';
 type Message = {
   role: 'user' | 'assistant';
@@ -13,11 +14,25 @@ type Message = {
 
 
 function App() {
+  const [llms, setLlms] = useState<string[]>([]);
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/ollama-list')
+      .then(res => setLlms(res.data.models))
+      .catch(() => setLlms([]));
+  }, []);
+  const [selectedLLM, setSelectedLLM] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [chatsData] = useState<any[]>(chatsDataJson);
+  const [chatsData, setChatsData] = useState<any[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
   const selectedChat = chatsData.find((c: any) => c.id === selectedChatId) ?? null;
+
+  // Fetch chats from server
+  useEffect(() => {
+    axios.get('http://localhost:3001/api/chats')
+      .then(res => setChatsData(res.data))
+      .catch(() => setChatsData([]));
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,26 +66,31 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen min-w-screen bg-gray-800 flex flex-row">
-      <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
-      <div className="flex-1 flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center justify-center w-[60vw] min-h-screen relative">
+    <div className="min-h-screen min-w-screen bg-gray-800 flex flex-col">
+      <Header selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} llms={llms} />
+      <div className="flex flex-row flex-1">
+        <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
+        <div className="flex-1 flex items-center justify-center min-h-screen w-[60vw]">
           {selectedChat ? (
-            <CurrentHistory messages={selectedChat.messages.flatMap((m: any) => [
-              { role: 'user' as const, content: m.user },
-              { role: 'assistant' as const, content: m.ai }
-            ])} />
+            <div className="flex flex-col items-center justify-end pb-20 w-[60vw] min-h-screen relative">
+              <CurrentHistory messages={selectedChat.messages.flatMap((m: any) => [
+                { role: 'user' as const, content: m.user },
+                { role: 'assistant' as const, content: m.ai }
+              ])} />
+            </div>  
           ) : (
-            <div className="flex flex-col items-center w-full">
-              <div>
-                <img src="ollama.svg" alt="Ollama Logo" className='h-50 pb-4' />
+            <div className="flex flex-col items-center justify-center w-[60vw] min-h-screen relative">
+              <div className="flex flex-col items-center w-full justify-end pb-20">
+                <div>
+                  <img src="ollama.svg" alt="Ollama Logo" className='h-50 pb-4' />
+                </div>
+                <div className="mb-8 text-center">
+                  <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
+                </div>
               </div>
-              <div className="mb-8 text-center">
-                <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
               </div>
-            </div>
           )}
-          <footer className='absolute bottom-2 w-full'>
+          <footer className='absolute bottom-2 w-[60vw]'>
             <ChatInput onSend={sendMessage} />
           </footer>
         </div>
