@@ -106,49 +106,56 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
         >
           <div className="p-4 border-b border-gray-800 text-xl font-bold text-white whitespace-nowrap">Chat History</div>
           <ul className="p-2">
-            {chats.map(chat => (
-              <li
-                key={chat._id}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 transition-colors group cursor-pointer ${selectedChatId === chat._id ? 'border-2 border-blue-500' : ''}`}
-                style={{ backgroundColor: '#1a2336', minWidth: '120px', whiteSpace: 'nowrap' }}
-                onMouseOver={e => (e.currentTarget.style.backgroundColor = '#232f4b')}
-                onMouseOut={e => (e.currentTarget.style.backgroundColor = '#1a2336')}
-                onClick={() => { setSelectedChatId(chat._id); navigate(`/chat/${chat._id}`); }}
-              >
-                {editingId === chat._id ? (
-                  <>
-                    <input
-                      className="text-white rounded px-2 py-1 w-full mr-2 outline-none border"
-                      style={{ backgroundColor: '#232f4b', borderColor: '#34406a' }}
-                      value={editValue}
-                      autoFocus
-                      onChange={e => setEditValue(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleRename(chat._id, editValue);
-                      }}
-                    />
-                    <button
-                      className="ml-2 text-green-400 hover:text-green-600 transition-colors"
-                      onClick={() => handleRename(chat._id, editValue)}
-                      aria-label="Save chat name"
-                    >
-                      <MdCheck size={20} />
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-white ml-2">{chat.name}</span>
-                    <button
-                      className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                      onClick={() => { setEditingId(chat._id); setEditValue(chat.name); }}
-                      aria-label="Rename chat"
-                    >
-                      <MdEdit size={18} />
-                    </button>
-                  </>
-                )}
-              </li>
-            ))}
+            {[...chats]
+              .sort((a, b) => {
+                // Sort by most recent message datetime, fallback to chat datetime
+                const aTime = a.messages?.length > 0 ? new Date(a.messages[a.messages.length - 1].datetime).getTime() : new Date(a.datetime).getTime();
+                const bTime = b.messages?.length > 0 ? new Date(b.messages[b.messages.length - 1].datetime).getTime() : new Date(b.datetime).getTime();
+                return bTime - aTime;
+              })
+              .map(chat => (
+                <li
+                  key={chat._id}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 transition-colors group cursor-pointer ${selectedChatId === chat._id ? 'border-2 border-blue-500' : ''}`}
+                  style={{ backgroundColor: '#1a2336', minWidth: '120px', whiteSpace: 'nowrap' }}
+                  onMouseOver={e => (e.currentTarget.style.backgroundColor = '#232f4b')}
+                  onMouseOut={e => (e.currentTarget.style.backgroundColor = '#1a2336')}
+                  onClick={() => { setSelectedChatId(chat._id); navigate(`/chat/${chat._id}`); }}
+                >
+                  {editingId === chat._id ? (
+                    <>
+                      <input
+                        className="text-white rounded px-2 py-1 w-full mr-2 outline-none border"
+                        style={{ backgroundColor: '#232f4b', borderColor: '#34406a' }}
+                        value={editValue}
+                        autoFocus
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleRename(chat._id, editValue);
+                        }}
+                      />
+                      <button
+                        className="ml-2 text-green-400 hover:text-green-600 transition-colors"
+                        onClick={() => handleRename(chat._id, editValue)}
+                        aria-label="Save chat name"
+                      >
+                        <MdCheck size={20} />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-white ml-2">{chat.name}</span>
+                      <button
+                        className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
+                        onClick={() => { setEditingId(chat._id); setEditValue(chat.name); }}
+                        aria-label="Rename chat"
+                      >
+                        <MdEdit size={18} />
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
           </ul>
         </div>
       </div>
