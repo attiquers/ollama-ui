@@ -37,7 +37,9 @@ export default function ChatRoutes() {
 
   return (
     <Router>
-      <Header selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} llms={llms} />
+      <div className='fixed top-0 left-0'>
+        <Header selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} llms={llms} />
+      </div>
       <div className="flex flex-row flex-1">
         <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
         <Routes>

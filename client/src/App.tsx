@@ -270,7 +270,7 @@ function App({
   }, [selectedLLM, selectedChatId, selectedChat, setChatsData, setSelectedChatId, setHasInteracted]); // Add dependencies for useCallback
 
   return (
-    <div className="flex-1 flex items-center justify-center min-h-screen w-[60vw]">
+    <div className="flex-1 flex bg-gray-800 items-center justify-center min-h-screen w-[60vw]">
       {/*
         Always render the chat container once a chat has been initiated,
         either by selecting an existing chat or starting a new one.
@@ -302,10 +302,12 @@ function App({
           <div ref={chatEndRef} />
         </div>
       )}
-      <footer className='absolute bottom-2 w-[60vw]'>
-        <ChatInput onSend={sendMessage} />
-        {isLoading && <div className="text-center text-gray-400 mt-2">Generating...</div>}
-      </footer>
+      <div className='fixed bottom-0 bg-gray-800 py-3 rounded-sm'>
+        <footer className='w-[60vw]'>
+          <ChatInput onSend={sendMessage} />
+          {/* {isLoading && <div className="text-center text-gray-400 mt-2">Generating...</div>} */}
+        </footer>
+      </div>
     </div>
   );
 }
