@@ -3,26 +3,59 @@ const router = express.Router();
 const { exec } = require('child_process');
 const axios = require('axios');
 
-// Start a specific LLM model with ollama run <model> (FIX: do not spawn, just check if model exists)
-router.post('/start', (req, res) => {
-  const { model } = req.body;
-  if (!model) {
-    return res.status(400).json({ error: 'Model is required.' });
+router.post('/generate', async (req, res) => {
+  const { model, prompt } = req.body;
+  if (!model || !prompt) {
+    return res.status(400).json({ error: 'Model and prompt are required.' });
   }
-  // Instead of spawning, just check if the model exists using `ollama list`
-  exec('ollama list', (error, stdout, stderr) => {
-    if (error) {
-      return res.status(500).json({ error: stderr || error.message });
+
+  try {
+    // Make a request to Ollama's generate API with stream: true
+    const ollamaResponse = await axios.post(
+      'http://localhost:11434/api/generate',
+      {
+        model,
+        prompt,
+        stream: true, // Crucial: Tell Ollama to stream
+      },
+      {
+        responseType: 'stream', // Crucial: Tell axios to expect a stream
+      }
+    );
+
+    // Set appropriate headers for streaming
+    res.setHeader('Content-Type', 'text/event-stream'); // Or application/json if you want to be strict, but text/event-stream is common for streams
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Pipe the Ollama response stream directly to the Express response
+    ollamaResponse.data.pipe(res);
+
+    // Handle end of stream and errors from Ollama
+    ollamaResponse.data.on('end', () => {
+      console.log('Stream from Ollama ended.');
+      res.end(); // End the Express response
+    });
+
+    ollamaResponse.data.on('error', (err) => {
+      console.error('Error streaming from Ollama:', err);
+      if (!res.headersSent) { // Only send error if headers haven't been sent yet
+        res.status(500).json({ error: 'Error streaming from Ollama.' });
+      } else {
+        res.end(); // If headers sent, just end the stream
+      }
+    });
+
+  } catch (err) {
+    console.error("Error setting up Ollama stream:", err);
+    if (!res.headersSent) {
+        res.status(500).json({ error: err.message || 'Failed to connect to Ollama streaming API.' });
+    } else {
+        res.end();
     }
-    const lines = stdout.trim().split('\n').slice(1);
-    const models = lines.map(line => line.split(/\s+/)[0]).filter(Boolean);
-    if (!models.includes(model)) {
-      return res.status(404).json({ error: `Model '${model}' not found in ollama list.` });
-    }
-    // Success: model exists, nothing else to do
-    res.json({ message: `Model '${model}' is available.` });
-  });
+  }
 });
+
 
 // GET all local LLMs (ollama list)
 router.get('/list', (req, res) => {

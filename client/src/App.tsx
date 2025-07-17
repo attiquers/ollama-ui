@@ -1,143 +1,164 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback } from 'react'; // Import useCallback
+import { useNavigate, useParams } from 'react-router-dom'; // useNavigate is not used but kept in import
 import axios from 'axios';
 import ChatInput from '@/components/ChatInput';
-// Header and SideBar are now rendered in ChatRoutes
 import CurrentHistory from '@/components/CurrentHistory';
-// import chatsDataJson from './dummyChats.json';
-// import { Message } from '@/types';
-type Message = {
+
+// Define types for clarity
+type ChatMessageDb = {
+  user: string;
+  ai: string;
+  datetime: string;
+};
+
+type DisplayMessage = {
   role: 'user' | 'assistant';
   content: string;
   blinking?: boolean;
 };
 
-
-
 function App({
   chatId: propChatId,
-  llms,
+  llms, // Not used in this component, but kept for signature
   selectedLLM,
   setSelectedLLM,
   chatsData,
   setSelectedChatId,
   selectedChatId,
-  setChatsData // <-- add setChatsData here
+  setChatsData
 }: any) {
-  // Remove messages and currentChat, use chatArray for all rendering
-  const [chatArray, setChatArray] = useState<Array<{ user: string; ai: string }>>([]);
+  const [currentChatMessages, setCurrentChatMessages] = useState<Array<{ user: string; ai: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const [hasInteracted, setHasInteracted] = useState(false); // New state to track user interaction
+
+  // Find the selected chat from the provided chatsData, or null if not found
   const selectedChat = chatsData.find((c: any) => c._id === selectedChatId) ?? null;
 
+  // Scrolls to the bottom of the chat history whenever messages update
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatArray]);
+  }, [currentChatMessages]);
 
-  // When route changes, update selectedChatId
+  // Updates selectedChatId from the URL parameter (propChatId)
   useEffect(() => {
-    if (propChatId !== selectedChatId) setSelectedChatId(propChatId ?? null);
-  }, [propChatId]);
+    if (propChatId !== selectedChatId) {
+      setSelectedChatId(propChatId ?? null);
+    }
+  }, [propChatId, selectedChatId, setSelectedChatId]);
 
-  // When selectedChatId changes, update chatArray from DB
+  // Loads messages into `currentChatMessages` when `selectedChatId` or `chatsData` changes.
+  // This is crucial for switching chats or initializing existing ones.
   useEffect(() => {
     const chat = chatsData.find((c: any) => c._id === selectedChatId);
     if (chat) {
-      setChatArray(chat.messages.map((m: any) => ({ user: m.user, ai: m.ai })));
-    } else if (selectedChatId) {
-      // Don't clear chatArray if a chat was just created but not yet in chatsData
-      // (prevents flicker)
-      // Do nothing
-    } else {
-      setChatArray([]);
+      setCurrentChatMessages(chat.messages.map((m: any) => ({ user: m.user, ai: m.ai })));
+      setHasInteracted(true); // If a chat is loaded, we've interacted
+    } else if (!selectedChatId && !hasInteracted) {
+      // Only clear messages if no chat is selected AND no interaction has occurred yet
+      // This prevents clearing when a new chat is being set up.
+      setCurrentChatMessages([]);
     }
-  }, [chatsData, selectedChatId]);
+    // If selectedChatId exists but chat isn't in chatsData yet (e.g., new chat pending creation)
+    // we deliberately do nothing here as sendMessage directly updates currentChatMessages.
+  }, [chatsData, selectedChatId, hasInteracted]); // Add hasInteracted to dependency array
 
-  // Persist selectedLLM in localStorage
+  // Persists the `selectedLLM` to and from localStorage
   useEffect(() => {
     const storedLLM = localStorage.getItem('selectedLLM');
     if (storedLLM && !selectedLLM) {
       setSelectedLLM(storedLLM);
     }
-  }, []);
+  }, [selectedLLM, setSelectedLLM]);
+
   useEffect(() => {
     if (selectedLLM) {
       localStorage.setItem('selectedLLM', selectedLLM);
     }
   }, [selectedLLM]);
 
-  // When a new chat is created, navigate to its route
+  // Updates the browser URL to reflect the currently selected chat ID
   useEffect(() => {
     if (selectedChatId && propChatId !== selectedChatId) {
       window.history.replaceState(null, '', `/chat/${selectedChatId}`);
     }
-  }, [selectedChatId]);
+  }, [selectedChatId, propChatId]);
 
-  const sendMessage = async (text: string) => {
+  // Using useCallback for sendMessage to prevent unnecessary re-renders if passed down
+  const sendMessage = useCallback(async (text: string) => {
     if (!selectedLLM) {
       alert('Please select an LLM first!');
       return;
     }
     setIsLoading(true);
+    setHasInteracted(true); // User has interacted, so we should show chat UI
 
-    let chatId = selectedChatId;
-    let chat = selectedChat;
+    let currentChatId = selectedChatId;
+    let chatToUpdate = selectedChat;
     let createdNewChat = false;
-    const userMsg = { user: text, ai: '', datetime: new Date().toISOString() };
-    if (!chat) {
-      // Create new chat with the user message already included
+
+    const userMessageForDb: ChatMessageDb = { user: text, ai: '', datetime: new Date().toISOString() };
+
+    // **Optimistic UI Update:** Immediately show the user's message and prepare for AI response
+    setCurrentChatMessages((prev) => [
+      ...prev,
+      { user: text, ai: '' } // Add the user's message and an empty AI slot for streaming
+    ]);
+
+
+    if (!chatToUpdate) {
+      // --- LOGIC FOR CREATING A NEW CHAT ---
       const newChatData = {
         name: `Chat with ${selectedLLM}`,
-        datetime: new Date().toISOString(),
-        messages: [userMsg]
+        datetime: userMessageForDb.datetime,
+        messages: [userMessageForDb]
       };
       try {
         const res = await axios.post('http://localhost:3001/api/chats', newChatData);
-        const backendChat = res.data;
-        // First update chatsData and selectedChatId, then set chatArray
+        chatToUpdate = res.data;
+        currentChatId = chatToUpdate._id;
+        createdNewChat = true;
+
         if (typeof setChatsData === 'function') {
-          setChatsData((prev: any[]) => [...prev, backendChat]);
+          setChatsData((prev: any[]) => [...prev, chatToUpdate]);
         }
         if (typeof setSelectedChatId === 'function') {
-          setSelectedChatId(backendChat._id);
+          setSelectedChatId(currentChatId);
         }
-        chatId = backendChat._id;
-        chat = backendChat;
-        createdNewChat = true;
-        // Now set chatArray after state updates
-        setTimeout(() => {
-          setChatArray(backendChat.messages.map((m: any) => ({ user: m.user, ai: m.ai })));
-        }, 0);
+
+        // **CRITICAL FIX:** Directly set `currentChatMessages` from the new chat's data.
+        // This ensures the UI reflects the new chat's state immediately and consistently.
+        setCurrentChatMessages(chatToUpdate.messages.map((m: any) => ({ user: m.user, ai: m.ai })));
+
       } catch (error) {
         console.error("Error creating new chat:", error);
         setIsLoading(false);
+        setHasInteracted(false); // Revert interaction state if creation fails
+        setCurrentChatMessages((prev) => prev.slice(0, prev.length - 1)); // Revert UI
         return;
       }
     } else {
-      // Existing chat: update chatArray and chatsData
-      setChatArray((prev) => [
-        ...prev,
-        { user: text, ai: '' }
-      ]);
-      const userMessages = [...(chat?.messages || []), userMsg];
+      // --- LOGIC FOR UPDATING AN EXISTING CHAT ---
+      const updatedMessagesForDb: ChatMessageDb[] = [...(chatToUpdate.messages || []), userMessageForDb];
       if (typeof setChatsData === 'function') {
         setChatsData((prev: any[]) => prev.map((c: any) =>
-          c._id === chat._id ? { ...c, messages: userMessages } : c
+          c._id === chatToUpdate._id ? { ...c, messages: updatedMessagesForDb } : c
         ));
       }
       try {
-        await axios.put(`http://localhost:3001/api/chats/${chat._id}`, {
-          ...chat,
-          messages: userMessages
+        await axios.put(`http://localhost:3001/api/chats/${chatToUpdate._id}`, {
+          ...chatToUpdate,
+          messages: updatedMessagesForDb
         });
       } catch (error) {
         console.error("Error updating existing chat:", error);
         setIsLoading(false);
+        setCurrentChatMessages((prev) => prev.slice(0, prev.length - 1)); // Revert UI
         return;
       }
     }
 
-    // Call Ollama API and stream response
+    // --- Ollama API Call and Streaming Response Handling ---
     const response = await fetch('http://localhost:3001/api/ollama/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -145,69 +166,130 @@ function App({
     });
 
     if (!response.body) {
+      console.error('No response body received from Ollama stream.');
       setIsLoading(false);
       return;
     }
 
     const reader = response.body.getReader();
-    let aiText = '';
-    let done = false;
-    while (!done) {
+    const decoder = new TextDecoder();
+    let aiAccumulatedText = '';
+    let buffer = '';
+    let streamDone = false;
+
+    while (!streamDone) {
       const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-      if (value) {
-        const chunk = new TextDecoder().decode(value);
-        aiText += chunk;
-        setChatArray((prev) => {
-          const updated = [...prev];
-          if (updated.length > 0) {
-            updated[updated.length - 1] = { ...updated[updated.length - 1], ai: aiText };
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.trim() === '') continue;
+
+        try {
+          const jsonChunk = JSON.parse(line);
+
+          if (jsonChunk.response) {
+            aiAccumulatedText += jsonChunk.response;
+
+            setCurrentChatMessages((prev) => {
+              const updated = [...prev];
+              if (updated.length > 0) {
+                updated[updated.length - 1] = {
+                  ...updated[updated.length - 1],
+                  ai: aiAccumulatedText
+                };
+              }
+              return updated;
+            });
+            chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
           }
-          return updated;
-        });
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+          if (jsonChunk.done) {
+            streamDone = true;
+            break;
+          }
+        } catch (error) {
+          console.error("Error parsing JSON chunk from stream:", error, "Line:", line);
+        }
+      }
+      if (doneReading && buffer.trim() === '') {
+        streamDone = true;
       }
     }
 
-    // Save assistant response in DB immediately
-    // For both new and existing chat, update messages
-    let currentChat = chat;
-    let updatedMessages: any[] = [];
-    if (currentChat) {
-      updatedMessages = [...(currentChat.messages || [])];
-      updatedMessages[updatedMessages.length - 1] = {
-        ...updatedMessages[updatedMessages.length - 1],
-        ai: aiText
-      };
-      await axios.put(`http://localhost:3001/api/chats/${currentChat._id}`, {
-        ...currentChat,
-        messages: updatedMessages
-      });
-      // Immediately update chatsData with the assistant response for instant UI feedback
-      if (typeof setChatsData === 'function') {
-        setChatsData((prev: any[]) => prev.map((c: any) =>
-          c._id === currentChat._id ? { ...c, messages: updatedMessages } : c
-        ));
+    // --- After streaming is complete, save the final AI response to the DB ---
+    const aiMessageForDb: ChatMessageDb = {
+      user: text,
+      ai: aiAccumulatedText,
+      datetime: new Date().toISOString()
+    };
+
+    let finalMessagesForDb: ChatMessageDb[] = [];
+
+    if (createdNewChat) {
+        finalMessagesForDb = [...(chatToUpdate?.messages || []), aiMessageForDb];
+    } else if (chatToUpdate) {
+      const existingMessages = chatToUpdate.messages || [];
+      const indexToUpdate = existingMessages.findIndex(
+        (msg: ChatMessageDb) => msg.user === text && msg.ai === ''
+      );
+
+      if (indexToUpdate !== -1) {
+        finalMessagesForDb = [...existingMessages];
+        finalMessagesForDb[indexToUpdate] = {
+            ...finalMessagesForDb[indexToUpdate],
+            ai: aiAccumulatedText,
+            datetime: aiMessageForDb.datetime
+        };
+      } else {
+          finalMessagesForDb = [...existingMessages, userMessageForDb, aiMessageForDb];
+      }
+    }
+
+    if (currentChatId) {
+      try {
+        await axios.put(`http://localhost:3001/api/chats/${currentChatId}`, {
+          ...chatToUpdate,
+          messages: finalMessagesForDb,
+          name: createdNewChat ? `Chat with ${selectedLLM}` : chatToUpdate.name
+        });
+
+        if (typeof setChatsData === 'function') {
+          setChatsData((prev: any[]) => prev.map((c: any) =>
+            c._id === currentChatId ? { ...c, messages: finalMessagesForDb } : c
+          ));
+        }
+      } catch (error) {
+        console.error("Error saving final AI response to DB:", error);
       }
     }
 
     setIsLoading(false);
-  };
+  }, [selectedLLM, selectedChatId, selectedChat, setChatsData, setSelectedChatId, setHasInteracted]); // Add dependencies for useCallback
 
   return (
     <div className="flex-1 flex items-center justify-center min-h-screen w-[60vw]">
-      {(chatArray.length > 0 || selectedChatId) ? (
+      {/*
+        Always render the chat container once a chat has been initiated,
+        either by selecting an existing chat or starting a new one.
+        This prevents the "flicker" of the component unmounting and remounting.
+      */}
+      {(selectedChatId || hasInteracted || currentChatMessages.length > 0) ? (
         <div className="flex flex-col items-center justify-end pb-20 w-[60vw] min-h-screen relative">
           <CurrentHistory
             messages={
-              chatArray.flatMap((m) => [
+              currentChatMessages.flatMap((m) => [
                 { role: 'user' as const, content: m.user },
-                { role: 'assistant' as const, content: m.ai }
+                { role: 'assistant' as const, content: m.ai, blinking: isLoading && m.ai === '' }
               ])
             }
           />
+          <div ref={chatEndRef} />
         </div>
       ) : (
+        // Render the initial empty state (Ollama logo) only if no chat is selected and no interaction has occurred
         <div className="flex flex-col items-center justify-center w-[60vw] min-h-screen relative">
           <div className="flex flex-col items-center w-full justify-end pb-20">
             <div>
@@ -217,11 +299,12 @@ function App({
               <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
             </div>
           </div>
+          <div ref={chatEndRef} />
         </div>
       )}
       <footer className='absolute bottom-2 w-[60vw]'>
         <ChatInput onSend={sendMessage} />
-        {isLoading && <div className="text-center text-gray-400 mt-2">Loading...</div>}
+        {isLoading && <div className="text-center text-gray-400 mt-2">Generating...</div>}
       </footer>
     </div>
   );
