@@ -1,26 +1,27 @@
-
 import { useState, useEffect } from 'react';
 import { MdHistory, MdAdd, MdSearch, MdClose, MdEdit, MdCheck } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
 
 type ChatListItem = {
-  id: number;
+  _id: string;
   name: string;
   datetime: string;
   messages: any[];
 };
 
 type SideBarProps = {
-  setSelectedChatId: (id: number | null) => void;
-  selectedChatId: number | null;
+  setSelectedChatId: (id: string | null) => void;
+  selectedChatId: string | null;
   chats: ChatListItem[];
 };
 
 export default function SideBar({ setSelectedChatId, selectedChatId, chats }: SideBarProps) {
   const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const navigate = useNavigate();
 
-  const handleRename = (id: number, name: string) => {
+  const handleRename = (id: string, name: string) => {
     // Only update local name, not JSON
     setEditValue('');
     setEditingId(null);
@@ -69,7 +70,7 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
           </button>
           <button
             className={`text-white flex items-center gap-3 relative group`}
-            onClick={() => { setSelectedChatId(null); }}
+            onClick={() => { setSelectedChatId(null); navigate(`/`); }}
             aria-label="New Chat"
           >
             <MdAdd size={28} />
@@ -107,14 +108,14 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
           <ul className="p-2">
             {chats.map(chat => (
               <li
-                key={chat.id}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 transition-colors group cursor-pointer ${selectedChatId === chat.id ? 'border-2 border-blue-500' : ''}`}
+                key={chat._id}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg mb-2 transition-colors group cursor-pointer ${selectedChatId === chat._id ? 'border-2 border-blue-500' : ''}`}
                 style={{ backgroundColor: '#1a2336', minWidth: '120px', whiteSpace: 'nowrap' }}
                 onMouseOver={e => (e.currentTarget.style.backgroundColor = '#232f4b')}
                 onMouseOut={e => (e.currentTarget.style.backgroundColor = '#1a2336')}
-                onClick={() => setSelectedChatId(chat.id)}
+                onClick={() => { setSelectedChatId(chat._id); navigate(`/chat/${chat._id}`); }}
               >
-                {editingId === chat.id ? (
+                {editingId === chat._id ? (
                   <>
                     <input
                       className="text-white rounded px-2 py-1 w-full mr-2 outline-none border"
@@ -123,12 +124,12 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
                       autoFocus
                       onChange={e => setEditValue(e.target.value)}
                       onKeyDown={e => {
-                        if (e.key === 'Enter') handleRename(chat.id, editValue);
+                        if (e.key === 'Enter') handleRename(chat._id, editValue);
                       }}
                     />
                     <button
                       className="ml-2 text-green-400 hover:text-green-600 transition-colors"
-                      onClick={() => handleRename(chat.id, editValue)}
+                      onClick={() => handleRename(chat._id, editValue)}
                       aria-label="Save chat name"
                     >
                       <MdCheck size={20} />
@@ -139,7 +140,7 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
                     <span className="text-white ml-2">{chat.name}</span>
                     <button
                       className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-white"
-                      onClick={() => { setEditingId(chat.id); setEditValue(chat.name); }}
+                      onClick={() => { setEditingId(chat._id); setEditValue(chat.name); }}
                       aria-label="Rename chat"
                     >
                       <MdEdit size={18} />

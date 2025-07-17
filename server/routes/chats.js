@@ -4,6 +4,16 @@ const Chat = require('../models/Chat');
 
 const router = express.Router();
 
+// DELETE all chats
+router.delete('/clear/all', async (req, res) => {
+  try {
+    await Chat.deleteMany({});
+    res.json({ message: 'All chats deleted.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete all chats.' });
+  }
+});
+
 // GET all chats
 router.get('/', async (req, res) => {
   try {

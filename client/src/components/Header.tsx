@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import axios from 'axios';
 
 interface HeaderProps {
   selectedLLM: string;
@@ -32,9 +33,14 @@ export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProp
               <li
                 key={llm}
                 className={`px-4 py-2 hover:bg-gray-700 rounded-xl cursor-pointer text-white border-b border-gray-800 last:border-b-0 ${selectedLLM === llm ? 'font-semibold bg-gray-700' : ''}`}
-                onClick={() => {
+                onClick={async () => {
                   setSelectedLLM(llm);
                   setDropdownOpen(false);
+                  try {
+                    await axios.post('http://localhost:3001/api/ollama/start', { model: llm });
+                  } catch (err) {
+                    alert('Failed to start Ollama model.');
+                  }
                 }}
               >
                 {llm}
