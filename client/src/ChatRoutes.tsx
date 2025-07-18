@@ -37,7 +37,7 @@ export default function ChatRoutes() {
 
   return (
     <Router>
-      <div className='fixed top-0 left-0'>
+      <div className='fixed top-0 left-1/2 z-50 transform -translate-x-1/2'>
         <Header selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} llms={llms} />
       </div>
       <div className="flex flex-row flex-1">

@@ -36,10 +36,10 @@ export default function ChatInput({ onSend }: { onSend: (text: string) => void }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col ">
-      <div className="bg-gray-700 px-4 py-2 rounded-xl flex items-end gap-2 w-full">
+      <div className="bg-[#1B1C1D] border-2 border-[#393c3f] px-4 py-2 rounded-4xl flex items-end gap-2 w-full">
         <textarea
           ref={textareaRef}
-          className="max-h-[20vh] flex-grow p-2 border-none rounded-xl active:outline-none focus:outline-none bg-gray-700 text-white resize-none min-h-[44px] overflow-y-auto"
+          className="max-h-[20vh] flex-grow p-2 border-none rounded-full active:outline-none focus:outline-none  text-white resize-none min-h-[44px] overflow-y-auto"
           placeholder="Type your message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -47,15 +47,15 @@ export default function ChatInput({ onSend }: { onSend: (text: string) => void }
           rows={1}
           style={{ lineHeight: '1.5' }}
         />
-        <button type="button" className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-full flex items-center justify-center mb-1" aria-label="Add">
-          <FiPlus size={20} />
+        <button type="button" className=" hover:bg-[#282A2C] text-white p-2 rounded-full flex items-center justify-center mb-1" aria-label="Add">
+          <FiPlus size={24} />
         </button>
         <button
           type="submit"
-          className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 flex items-center justify-center ml-2"
+          className="text-white p-3 rounded-full hover:bg-[#282A2C] flex items-center justify-center ml-2"
           aria-label="Send"
         >
-          <FiSend size={22} />
+          <FiSend size={20} />
         </button>
       </div>
     </form>
