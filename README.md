@@ -11,17 +11,19 @@
 
 ## Table of Contents
 
-  * [🌟 Features](https://www.google.com/search?q=%23features)
-  * [🛠️ Technologies Used](https://www.google.com/search?q=%23technologies-used)
-  * [✅ Prerequisites](https://www.google.com/search?q=%23prerequisites)
-  * [🚀 Getting Started](https://www.google.com/search?q=%23getting-started)
-      * [1. Clone the Repository](https://www.google.com/search?q=%231-clone-the-repository)
-      * [2. Create Frontend Environment File](https://www.google.com/search?q=%232-create-frontend-environment-file)
-      * [3. Run with Docker Compose](https://www.google.com/search?q=%233-run-with-docker-compose)
-  * [🌐 Accessing the Application](https://www.google.com/search?q=%23accessing-the-application)
-  * [🛑 Stopping the Application](https://www.google.com/search?q=%23stopping-the-application)
-  * [📂 Project Structure](https://www.google.com/search?q=%23project-structure)
-  * [📜 License](https://www.google.com/search?q=%23license)
+*(**Note:** For these links to navigate within the document, please view this README on its [GitHub repository](https://github.com/attiquers/ollama-ui).)*
+
+    * [🌟 Features](#features)
+    * [🛠️ Technologies Used](#technologies-used)
+    * [✅ Prerequisites](#prerequisites)
+    * [🚀 Getting Started](#getting-started)
+        * [1. Clone the Repository](#1-clone-the-repository)
+        * [2. Create Frontend Environment File](#2-create-frontend-environment-file)
+        * [3. Run with Docker Compose](#3-run-with-docker-compose)
+    * [🌐 Accessing the Application](#accessing-the-application)
+    * [🛑 Stopping the Application](#stopping-the-application)
+    * [📂 Project Structure](#project-structure)
+    * [📜 License](#license)
 
 -----
 
