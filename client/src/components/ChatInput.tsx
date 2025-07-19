@@ -1,13 +1,14 @@
+// ChatInput.tsx
 import { useState, useRef, useEffect } from 'react';
-import { FiSend, FiPlus } from 'react-icons/fi';
+import { FiSend, FiPlus, FiStopCircle } from 'react-icons/fi'; // Import FiStopCircle
 
-export default function ChatInput({ onSend }: { onSend: (text: string) => void }) {
+export default function ChatInput({ onSend, isLoading, onStop }: { onSend: (text: string) => void; isLoading: boolean; onStop: () => void; }) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim()) {
+    if (input.trim() && !isLoading) { // Prevent sending new messages while loading
       onSend(input);
       setInput('');
     }
@@ -16,7 +17,9 @@ export default function ChatInput({ onSend }: { onSend: (text: string) => void }
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e as any);
+      if (!isLoading) { // Prevent sending new messages while loading
+        handleSubmit(e as any);
+      }
     }
   };
 
@@ -46,17 +49,32 @@ export default function ChatInput({ onSend }: { onSend: (text: string) => void }
           onKeyDown={handleKeyDown}
           rows={1}
           style={{ lineHeight: '1.5' }}
+          disabled={isLoading} // Disable input while loading
         />
-        <button type="button" className=" hover:bg-[#282A2C] text-white p-2 rounded-full flex items-center justify-center mb-1" aria-label="Add">
-          <FiPlus size={24} />
-        </button>
-        <button
-          type="submit"
-          className="text-white p-3 rounded-full hover:bg-[#282A2C] flex items-center justify-center ml-2"
-          aria-label="Send"
-        >
-          <FiSend size={20} />
-        </button>
+        {/* Conditionally render Stop button or Send/Plus buttons */}
+        {isLoading ? (
+          <button
+            type="button" // Important: not submit
+            onClick={onStop}
+            className="text-red-500 p-3 rounded-full hover:bg-[#282A2C] flex items-center justify-center ml-2"
+            aria-label="Stop Generation"
+          >
+            <FiStopCircle size={24} />
+          </button>
+        ) : (
+          <>
+            <button type="button" className="hover:bg-[#282A2C] text-white p-2 rounded-full flex items-center justify-center mb-1" aria-label="Add">
+              <FiPlus size={24} />
+            </button>
+            <button
+              type="submit"
+              className="text-white p-3 rounded-full hover:bg-[#282A2C] flex items-center justify-center ml-2"
+              aria-label="Send"
+            >
+              <FiSend size={20} />
+            </button>
+          </>
+        )}
       </div>
     </form>
   );

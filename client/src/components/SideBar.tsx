@@ -17,7 +17,7 @@ type SideBarProps = {
 };
 
 // Define the base API URL using Vite's environment variable.
-const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api'; // ADDED: API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api'; // ADDED: API_BASE_URL
 
 export default function SideBar({ setSelectedChatId, selectedChatId, chats }: SideBarProps) {
   const [open, setOpen] = useState(false);

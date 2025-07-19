@@ -10,7 +10,7 @@ interface HeaderProps {
 // Define the base API URL using Vite's environment variable.
 // This variable will be set by Docker Compose during the build process.
 // The fallback is for local development outside Docker.
-const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
