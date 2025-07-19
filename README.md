@@ -12,17 +12,18 @@
 ## Table of Contents
 
 *(**Note:** For these links to navigate within the document, please view this README on its [GitHub repository](https://github.com/attiquers/ollama-ui).)*
-    * [🌟 Features](#features)
-    * [🛠️ Technologies Used](#technologies-used)
-    * [✅ Prerequisites](#prerequisites)
-    * [🚀 Getting Started](#getting-started)
-        * [1. Clone the Repository](#1-clone-the-repository)
-        * [2. Create Frontend Environment File](#2-create-frontend-environment-file)
-        * [3. Run with Docker Compose](#3-run-with-docker-compose)
-    * [🌐 Accessing the Application](#accessing-the-application)
-    * [🛑 Stopping the Application](#stopping-the-application)
-    * [📂 Project Structure](#project-structure)
-    * [📜 License](#license)
+
+* [🌟 Features](#features)
+* [🛠️ Technologies Used](#technologies-used)
+* [✅ Prerequisites](#prerequisites)
+* [🚀 Getting Started](#getting-started)
+    * [1. Clone the Repository](#1-clone-the-repository)
+    * [2. Create Frontend Environment File](#2-create-frontend-environment-file)
+    * [3. Run with Docker Compose](#3-run-with-docker-compose)
+* [🌐 Accessing the Application](#accessing-the-application)
+* [🛑 Stopping the Application](#stopping-the-application)
+* [📂 Project Structure](#project-structure)
+* [📜 License](#license)
 
 -----
 
