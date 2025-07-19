@@ -12,7 +12,6 @@
 ## Table of Contents
 
 *(**Note:** For these links to navigate within the document, please view this README on its [GitHub repository](https://github.com/attiquers/ollama-ui).)*
-
     * [🌟 Features](#features)
     * [🛠️ Technologies Used](#technologies-used)
     * [✅ Prerequisites](#prerequisites)
