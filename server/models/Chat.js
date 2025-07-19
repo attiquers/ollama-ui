@@ -1,15 +1,30 @@
 const mongoose = require('mongoose');
 
-const MessageSchema = new mongoose.Schema({
-  user: String,
-  ai: String,
-  datetime: String,
+const messageSchema = new mongoose.Schema({
+  user: {
+    type: String,
+    required: true,
+  },
+  ai: {
+    type: String,
+    required: false, // AI response can be empty initially or partially
+  },
+  datetime: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-const ChatSchema = new mongoose.Schema({
-  name: String,
-  datetime: String,
-  messages: [MessageSchema],
+const chatSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  messages: [messageSchema],
+  datetime: { // Last updated/created timestamp for the chat itself
+    type: Date,
+    default: Date.now,
+  },
 });
 
-module.exports = mongoose.model('Chat', ChatSchema);
+module.exports = mongoose.model('Chat', chatSchema);
