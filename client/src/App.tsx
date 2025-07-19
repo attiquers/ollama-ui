@@ -1,32 +1,41 @@
-import { useEffect, useRef, useState, useCallback } from 'react'; // Import useCallback
-import { useNavigate, useParams } from 'react-router-dom'; // useNavigate is not used but kept in import
+import { useEffect, useRef, useState, useCallback } from 'react';
+// useNavigate is not used directly in App.tsx, so it's removed from import
+// useParams is used in ChatAppWrapper, not directly here.
 import axios from 'axios';
 import ChatInput from '@/components/ChatInput';
 import CurrentHistory from '@/components/CurrentHistory';
 
-// Define types for clarity
+// ChatMessageDb type is used for database interaction
 type ChatMessageDb = {
   user: string;
   ai: string;
   datetime: string;
 };
 
-type DisplayMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-  blinking?: boolean;
-};
+// DisplayMessage type was declared but not used in this file, so it's removed.
+// If it's used elsewhere, it should be defined in a shared types file.
+// type DisplayMessage = {
+//   role: 'user' | 'assistant';
+//   content: string;
+//   blinking?: boolean;
+// };
+
+// Define the base API URL using Vite's environment variable.
+// This variable will be set by Docker Compose during the build process.
+// The fallback is for local development outside Docker.
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api';
 
 function App({
   chatId: propChatId,
-  llms, // Not used in this component, but kept for signature
+  // 'llms' prop was declared but its value was never read in App.tsx, so it's removed from destructuring.
+  // If it's truly needed here, its usage should be added.
   selectedLLM,
   setSelectedLLM,
   chatsData,
   setSelectedChatId,
   selectedChatId,
   setChatsData
-}: any) {
+}: any) { // Using 'any' for props for simplicity, consider defining a more specific interface for AppProps
   const [currentChatMessages, setCurrentChatMessages] = useState<Array<{ user: string; ai: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -87,14 +96,15 @@ function App({
   // Using useCallback for sendMessage to prevent unnecessary re-renders if passed down
   const sendMessage = useCallback(async (text: string) => {
     if (!selectedLLM) {
-      alert('Please select an LLM first!');
+      alert('Please select an LLM first!'); // Note: alert() is generally discouraged for better UX
       return;
     }
     setIsLoading(true);
     setHasInteracted(true); // User has interacted, so we should show chat UI
 
     let currentChatId = selectedChatId;
-    let chatToUpdate = selectedChat;
+    // Ensure selectedChat is derived from the latest chatsData within useCallback
+    let chatToUpdate = chatsData.find((c: any) => c._id === selectedChatId) ?? null;
     let createdNewChat = false;
 
     const userMessageForDb: ChatMessageDb = { user: text, ai: '', datetime: new Date().toISOString() };
@@ -114,7 +124,8 @@ function App({
         messages: [userMessageForDb]
       };
       try {
-        const res = await axios.post('http://localhost:3001/api/chats', newChatData);
+        // CHANGED: Use API_BASE_URL for API calls
+        const res = await axios.post(`${API_BASE_URL}/chats`, newChatData);
         chatToUpdate = res.data;
         currentChatId = chatToUpdate._id;
         createdNewChat = true;
@@ -146,7 +157,8 @@ function App({
         ));
       }
       try {
-        await axios.put(`http://localhost:3001/api/chats/${chatToUpdate._id}`, {
+        // CHANGED: Use API_BASE_URL for API calls
+        await axios.put(`${API_BASE_URL}/chats/${chatToUpdate._id}`, {
           ...chatToUpdate,
           messages: updatedMessagesForDb
         });
@@ -159,7 +171,8 @@ function App({
     }
 
     // --- Ollama API Call and Streaming Response Handling ---
-    const response = await fetch('http://localhost:3001/api/ollama/generate', {
+    // CHANGED: Use API_BASE_URL for API calls
+    const response = await fetch(`${API_BASE_URL}/ollama/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: selectedLLM, prompt: text, stream: true })
@@ -232,6 +245,7 @@ function App({
         finalMessagesForDb = [...(chatToUpdate?.messages || []), aiMessageForDb];
     } else if (chatToUpdate) {
       const existingMessages = chatToUpdate.messages || [];
+      // Find the user message that was optimistically added and update its AI response
       const indexToUpdate = existingMessages.findIndex(
         (msg: ChatMessageDb) => msg.user === text && msg.ai === ''
       );
@@ -244,13 +258,15 @@ function App({
             datetime: aiMessageForDb.datetime
         };
       } else {
+          // Fallback in case the optimistic update wasn't found (shouldn't happen often)
           finalMessagesForDb = [...existingMessages, userMessageForDb, aiMessageForDb];
       }
     }
 
     if (currentChatId) {
       try {
-        await axios.put(`http://localhost:3001/api/chats/${currentChatId}`, {
+        // CHANGED: Use API_BASE_URL for API calls
+        await axios.put(`${API_BASE_URL}/chats/${currentChatId}`, {
           ...chatToUpdate,
           messages: finalMessagesForDb,
           name: createdNewChat ? `Chat with ${selectedLLM}` : chatToUpdate.name
@@ -267,7 +283,7 @@ function App({
     }
 
     setIsLoading(false);
-  }, [selectedLLM, selectedChatId, selectedChat, setChatsData, setSelectedChatId, setHasInteracted]); // Add dependencies for useCallback
+  }, [selectedLLM, selectedChatId, selectedChat, chatsData, setChatsData, setSelectedChatId, setHasInteracted]); // Added chatsData to dependencies
 
   return (
     <div className="flex-1 flex bg-[#1B1C1D] items-center justify-center min-h-screen w-[60vw]">

@@ -1,8 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { exec } = require('child_process');
-const axios = require('axios');
+// const { exec } = require('child_process'); // REMOVED: No longer needed, we'll use HTTP requests
+const axios = require('axios'); // Already imported, good!
 
+// Get the Ollama API URL from environment variables
+// 'ollama' is the service name of the Ollama container in docker-compose.yml.
+// Fallback to 'http://localhost:11434' for local development outside Docker.
+const ollamaApiUrl = process.env.OLLAMA_API_URL || 'http://localhost:11434';
+
+// --- Important: You had two /generate routes. We're keeping the streaming one and fixing it. ---
+
+// POST to generate a response from a specific LLM using Ollama HTTP API (with streaming)
 router.post('/generate', async (req, res) => {
   const { model, prompt } = req.body;
   if (!model || !prompt) {
@@ -11,8 +19,9 @@ router.post('/generate', async (req, res) => {
 
   try {
     // Make a request to Ollama's generate API with stream: true
+    // Use the 'ollamaApiUrl' which will be 'http://ollama:11434' inside Docker.
     const ollamaResponse = await axios.post(
-      'http://localhost:11434/api/generate',
+      `${ollamaApiUrl}/api/generate`, // CHANGED: Use ollamaApiUrl
       {
         model,
         prompt,
@@ -51,6 +60,8 @@ router.post('/generate', async (req, res) => {
     if (!res.headersSent) {
         res.status(500).json({ error: err.message || 'Failed to connect to Ollama streaming API.' });
     } else {
+      // If headers were already sent (part of the stream), just end the response
+      // This prevents "Cannot set headers after they are sent to the client" errors
         res.end();
     }
   }
@@ -58,36 +69,26 @@ router.post('/generate', async (req, res) => {
 
 
 // GET all local LLMs (ollama list)
-router.get('/list', (req, res) => {
-  exec('ollama list', (error, stdout, stderr) => {
-    if (error) {
-      return res.status(500).json({ error: stderr || error.message });
-    }
-    // Parse output: skip header, get first word of each line
-    const lines = stdout.trim().split('\n').slice(1);
-    const models = lines.map(line => line.split(/\s+/)[0]).filter(Boolean);
-    res.json({ models });
-  });
+// CHANGED: Replaced exec('ollama list') with an HTTP GET request to Ollama's /api/tags endpoint
+router.get('/list', async (req, res) => { // Made the function 'async'
+  try {
+    // Make an HTTP GET request to Ollama's /api/tags endpoint
+    // This endpoint returns a list of available models.
+    const response = await axios.get(`${ollamaApiUrl}/api/tags`); // CHANGED: Use ollamaApiUrl and axios.get
+
+    // The /api/tags response is usually like { models: [...] }
+    const modelsData = response.data.models;
+
+    // Extract just the model names (e.g., "llama2", "mistral")
+    const modelNames = modelsData.map(model => model.name);
+
+    res.json({ models: modelNames });
+
+  } catch (error) {
+    console.error('Error fetching Ollama models:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch Ollama models.' });
+  }
 });
 
-// POST to generate a response from a specific LLM using Ollama HTTP API
-// (already imported above)
-router.post('/generate', async (req, res) => {
-  const { model, prompt } = req.body;
-  if (!model || !prompt) {
-    return res.status(400).json({ error: 'Model and prompt are required.' });
-  }
-  try {
-    const ollamaRes = await axios.post('http://localhost:11434/api/generate', {
-      model,
-      prompt
-    }, { timeout: 60000 });
-    // The response is streamed, but for simplicity, we expect Ollama to return the full response
-    // If Ollama returns a stream, you may need to handle it differently
-    res.json({ response: ollamaRes.data.response || ollamaRes.data });
-  } catch (err) {
-    res.status(500).json({ error: err.message || 'Failed to generate response from Ollama.' });
-  }
-});
 
 module.exports = router;

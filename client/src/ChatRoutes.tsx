@@ -1,14 +1,19 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from 'react-router-dom';
 import App from './App';
 import Header from './components/Header';
 import SideBar from './components/SideBar';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api';
+
+
 function ChatAppWrapper({
   llms, selectedLLM, setSelectedLLM, chatsData, setSelectedChatId, selectedChatId
 }: any) {
-  const { chatId } = useParams<{ chatId?: string }>();
+  // --- REMOVE THE TYPE ARGUMENT HERE ---
+  const { chatId } = useParams();
+  // --- END OF CHANGE ---
   return <App
     chatId={chatId || null}
     llms={llms}
@@ -27,12 +32,18 @@ export default function ChatRoutes() {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   useEffect(() => {
-    axios.get('http://localhost:3001/api/ollama/list')
+    axios.get(`${API_BASE_URL}/ollama/list`)
       .then(res => setLlms(res.data.models))
-      .catch(() => setLlms([]));
-    axios.get('http://localhost:3001/api/chats')
+      .catch((error) => {
+        console.error("Error fetching LLM list:", error);
+        setLlms([]);
+      });
+    axios.get(`${API_BASE_URL}/chats`)
       .then(res => setChatsData(res.data))
-      .catch(() => setChatsData([]));
+      .catch((error) => {
+        console.error("Error fetching chats:", error);
+        setChatsData([]);
+      });
   }, []);
 
   return (

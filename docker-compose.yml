@@ -1,0 +1,58 @@
+# Removed 'version: 3.8' as it's obsolete in newer Docker Compose versions.
+
+services:
+  # MongoDB Service: Your database for chat history, user data, etc.
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb-db
+    ports:
+      # FIX: Changed host port from 27017 to 27018 to avoid 'address already in use' error.
+      # The format is HOST_PORT:CONTAINER_PORT.
+      # Your application's backend will still connect to 'mongodb:27017' internally.
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db # Persistent storage for MongoDB data
+    restart: unless-stopped
+
+  # Backend Service: Your Node.js/Express API application
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: openwebui-backend
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongodb:27017/ollama_ui_db
+      OLLAMA_API_URL: http://host.docker.internal:11434
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
+  # Frontend Service: Your React application served by Nginx
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      # REMOVED: No longer passing VITE_REACT_APP_API_URL as a build argument here,
+      # as it's now copied via the .env.production file in the Dockerfile.
+      # args:
+      #   VITE_REACT_APP_API_URL: http://localhost:5000/api
+    container_name: openwebui-frontend
+    ports:
+      - "3000:80"
+    environment:
+      # Keep the environment variable for runtime consistency, though the build arg was the key for Vite.
+      VITE_REACT_APP_API_URL: http://localhost:5000/api
+    depends_on:
+      - backend
+    restart: unless-stopped
+    command: >
+      /bin/sh -c "echo '======================================================' &&
+      echo 'Ollama UI is accessible at: http://localhost:3000' &&
+      echo '======================================================' &&
+      nginx -g 'daemon off;'"
+
+volumes:
+  mongo_data:

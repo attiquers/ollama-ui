@@ -6,6 +6,7 @@ import 'highlight.js/styles/atom-one-dark.css'; // Dark theme for code highlight
 
 // Import icons from react-icons/md
 import { MdContentCopy, MdCheck } from 'react-icons/md'; // MdContentCopy for copy, MdCheck for tick
+import type { Components } from 'react-markdown'; // Import Components type using type-only import
 
 // Define the Message type
 interface Message {
@@ -38,6 +39,16 @@ const copyToClipboard = (text: string, setCopied: (status: boolean) => void) => 
   }
 };
 
+// Define an interface for the props of the custom code component
+interface CustomCodeProps {
+  node?: any; // The AST node from remark/rehype
+  inline?: boolean;
+  className?: string;
+  children?: React.ReactNode; // <--- MAKE CHILDREN OPTIONAL HERE
+  // Add other props that might be passed to a code element if necessary
+  [key: string]: any;
+}
+
 /**
  * ChatMessage Component
  * Displays a single chat message, styling it differently based on the sender (user or assistant).
@@ -56,6 +67,107 @@ export default function ChatMessage({ message }: { message: Message }) {
   const messageContainerClasses = message.role === 'user'
     ? 'w-fit max-w-4xl bg-[#282A2C] text-white self-end'
     : 'w-full bg-[#1B1C1D] text-white self-start';
+
+  // Define custom components for ReactMarkdown
+  const customComponents: Components = {
+    // Custom component for paragraphs to add vertical margin and text color
+    p: ({ node, ...props }) => <p className="mb-4 last:mb-0 text-gray-100" {...props} />,
+    // Custom component for list items to add vertical margin and text color
+    li: ({ node, ...props }) => <li className="mb-2 last:mb-0 text-gray-100" {...props} />,
+    // Custom component for preformatted text blocks (code blocks)
+    pre: ({ node, children, ...props }) => {
+      const [isCodeCopied, setIsCodeCopied] = useState(false);
+      // State for controlling the tooltip visibility on hover for code blocks
+      const [showCodeTooltip, setShowCodeTooltip] = useState(false);
+
+      // Extract the raw text content from the children of the pre tag
+      // children here will typically be a single `code` element
+      const codeContent = React.Children.toArray(children)
+        .map(child => {
+          // Assert that child is a ReactElement and its props.children is a string
+          if (
+            React.isValidElement(child) &&
+            typeof (child.props as { children?: string | string[] }).children === 'string'
+          ) {
+            return (child.props as { children: string }).children;
+          }
+          // Handle cases where children might be an array of strings (e.g., if code has multiple text nodes)
+          if (
+            React.isValidElement(child) &&
+            Array.isArray((child.props as { children?: string | string[] }).children)
+          ) {
+            return ((child.props as { children: string[] }).children).join('');
+          }
+          return '';
+        })
+        .join('');
+
+      return (
+        <pre
+          className="relative rounded-lg p-4 my-4 shadow-md group"
+          {...props}
+        >
+          {/* Code Block Copy Button - always visible at top-right */}
+          <button
+            onClick={() => copyToClipboard(codeContent, setIsCodeCopied)}
+            onMouseEnter={() => setShowCodeTooltip(true)} // Show tooltip on hover in
+            onMouseLeave={() => setShowCodeTooltip(false)} // Hide tooltip on hover out
+            className="absolute right-4 p-2 rounded-md bg-gray-700 text-white text-xs opacity-100 cursor-pointer hover:bg-gray-600 transition-colors duration-200 z-10 flex items-center justify-center"
+          >
+            {/* Conditionally render MdCheck when copied, otherwise MdContentCopy */}
+            {isCodeCopied ? (
+              <MdCheck className="w-4 h-4 text-green-400" /> // Green check for copied state
+            ) : (
+              <MdContentCopy className="w-4 h-4" />
+            )}
+
+            {/* Conditional rendering for "Copied!" message */}
+            {isCodeCopied && (
+              <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-2 py-1 rounded-md whitespace-nowrap">
+                Copied!
+              </span>
+            )}
+            {/* Conditional rendering for hover tooltip */}
+            {!isCodeCopied && showCodeTooltip && (
+              <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-2 py-1 rounded-md whitespace-nowrap">
+                Copy code
+              </span>
+            )}
+          </button>
+          {children}
+        </pre>
+      );
+    },
+    // Custom component for code elements (both inline and block)
+    code: ({ node, inline, className, children, ...props }: CustomCodeProps) => {
+      const match = /language-(\w+)/.exec(className || '');
+
+      return !inline && match ? (
+        <code className={`${className} font-mono text-base`} {...props}>
+          {children}
+        </code>
+      ) : (
+        // Apply consistent styling for inline code regardless of role
+        <code className={`bg-gray-700 text-gray-100 px-1 py-0.5 rounded font-mono text-base`}>
+          {children}
+        </code>
+      );
+    },
+    // Add custom components for other elements if needed for spacing, e.g., headings
+    h1: ({ node, ...props }) => <h1 className="text-3xl font-bold mb-4 mt-6 text-white" {...props} />,
+    h2: ({ node, ...props }) => <h2 className="text-2xl font-semibold mb-3 mt-5 text-white" {...props} />,
+    h3: ({ node, ...props }) => <h3 className="text-xl font-medium mb-2 mt-4 text-white" {...props} />,
+    ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
+    ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
+    // Add a component for links to give them a distinct color
+    a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" {...props} />,
+    // Add strong/bold text styling
+    strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props} />,
+    // Add emphasis/italic text styling
+    em: ({ node, ...props }) => <em className="italic text-gray-300" {...props} />,
+    // Add blockquote styling
+    blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-gray-500 pl-4 py-2 my-4 text-gray-300 italic" {...props} />,
+  };
 
   return (
     // The main container for the chat message.
@@ -104,94 +216,7 @@ export default function ChatMessage({ message }: { message: Message }) {
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             rehypePlugins={[rehypeHighlight]}
-            components={{
-              // Custom component for paragraphs to add vertical margin and text color
-              p: ({ node, ...props }) => <p className="mb-4 last:mb-0 text-gray-100" {...props} />,
-              // Custom component for list items to add vertical margin and text color
-              li: ({ node, ...props }) => <li className="mb-2 last:mb-0 text-gray-100" {...props} />,
-              // Custom component for preformatted text blocks (code blocks)
-              pre: ({ node, children, ...props }) => {
-                const [isCodeCopied, setIsCodeCopied] = useState(false);
-                // State for controlling the tooltip visibility on hover for code blocks
-                const [showCodeTooltip, setShowCodeTooltip] = useState(false);
-
-                // Extract the raw text content from the children of the pre tag
-                const codeContent = Array.isArray(children)
-                  ? children.map(child => {
-                      if (typeof child === 'string') return child;
-                      if (React.isValidElement(child) && child.props && child.props.children) {
-                        return Array.isArray(child.props.children) ? child.props.children.join('') : child.props.children;
-                      }
-                      return '';
-                    }).join('')
-                  : typeof children === 'string' ? children : '';
-
-                return (
-                  <pre
-                    className="relative rounded-lg p-4 my-4 shadow-md group"
-                    {...props}
-                  >
-                    {/* Code Block Copy Button - always visible at top-right */}
-                    <button
-                      onClick={() => copyToClipboard(codeContent, setIsCodeCopied)}
-                      onMouseEnter={() => setShowCodeTooltip(true)} // Show tooltip on hover in
-                      onMouseLeave={() => setShowCodeTooltip(false)} // Hide tooltip on hover out
-                      className="absolute right-4 p-2 rounded-md700 text-white text-xs opacity-100 cursor-pointer hover:bg-gray-600 transition-colors duration-200 z-10 flex items-center justify-center"
-                    >
-                      {/* Conditionally render MdCheck when copied, otherwise MdContentCopy */}
-                      {isCodeCopied ? (
-                        <MdCheck className="w-4 h-4 text-green-400" /> // Green check for copied state
-                      ) : (
-                        <MdContentCopy className="w-4 h-4" />
-                      )}
-
-                      {/* Conditional rendering for "Copied!" message */}
-                      {isCodeCopied && (
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-2 py-1 rounded-md whitespace-nowrap">
-                          Copied!
-                        </span>
-                      )}
-                      {/* Conditional rendering for hover tooltip */}
-                      {!isCodeCopied && showCodeTooltip && (
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-xs px-2 py-1 rounded-md whitespace-nowrap">
-                          Copy code
-                        </span>
-                      )}
-                    </button>
-                    {children}
-                  </pre>
-                );
-              },
-              // Custom component for code elements (both inline and block)
-              code({ node, inline, className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-
-                return !inline && match ? (
-                  <code className={`${className} font-mono text-base`} {...props}>
-                    {children}
-                  </code>
-                ) : (
-                  // Apply consistent styling for inline code regardless of role
-                  <code className={`bg-gray-700 text-gray-100 px-1 py-0.5 rounded font-mono text-base`}>
-                    {children}
-                  </code>
-                );
-              },
-              // Add custom components for other elements if needed for spacing, e.g., headings
-              h1: ({ node, ...props }) => <h1 className="text-3xl font-bold mb-4 mt-6 text-white" {...props} />,
-              h2: ({ node, ...props }) => <h2 className="text-2xl font-semibold mb-3 mt-5 text-white" {...props} />,
-              h3: ({ node, ...props }) => <h3 className="text-xl font-medium mb-2 mt-4 text-white" {...props} />,
-              ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
-              ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
-              // Add a component for links to give them a distinct color
-              a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" {...props} />,
-              // Add strong/bold text styling
-              strong: ({ node, ...props }) => <strong className="font-semibold text-white" {...props} />,
-              // Add emphasis/italic text styling
-              em: ({ node, ...props }) => <em className="italic text-gray-300" {...props} />,
-              // Add blockquote styling
-              blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-gray-500 pl-4 py-2 my-4 text-gray-300 italic" {...props} />,
-            }}
+            components={customComponents} // Use the defined customComponents object
           >
             {message.content}
           </ReactMarkdown>

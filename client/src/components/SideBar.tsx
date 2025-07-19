@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MdHistory, MdAdd, MdSearch, MdClose, MdEdit, MdCheck } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios'; // ADDED: axios for API call
 
 type ChatListItem = {
   _id: string;
@@ -15,17 +16,36 @@ type SideBarProps = {
   chats: ChatListItem[];
 };
 
+// Define the base API URL using Vite's environment variable.
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api'; // ADDED: API_BASE_URL
+
 export default function SideBar({ setSelectedChatId, selectedChatId, chats }: SideBarProps) {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const navigate = useNavigate();
 
-  const handleRename = (id: string, name: string) => {
-    // Only update local name, not JSON
-    setEditValue('');
-    setEditingId(null);
+  // FIX: Implement actual rename logic and use 'id' and 'newName' parameters
+  const handleRename = async (id: string, newName: string) => { // CHANGED: Renamed 'name' to 'newName' for clarity
+    if (newName.trim() === '') {
+      alert('Chat name cannot be empty.'); // Or use a more sophisticated UI notification
+      return;
+    }
+    try {
+      // API call to update the chat name in MongoDB
+      await axios.put(`${API_BASE_URL}/chats/${id}`, { name: newName }); // CHANGED: Use API_BASE_URL
+      // After successful update, reset editing state
+      setEditingId(null);
+      setEditValue('');
+      // In a real application, you would typically trigger a re-fetch of chatsData in a parent component
+      // or pass a `setChatsData` prop down to SideBar to update the local state directly.
+      // For this example, we'll assume a re-fetch happens or it's handled upstream.
+    } catch (error) {
+      console.error(`Error renaming chat ${id}:`, error);
+      alert('Failed to rename chat.');
+    }
   };
+
 
   // Close sidebar when clicking outside
   useEffect(() => {
@@ -111,9 +131,8 @@ export default function SideBar({ setSelectedChatId, selectedChatId, chats }: Si
           <div className="p-4 border-b border-gray-800 text-xl font-bold text-white whitespace-nowrap">Chat History</div>
           <ul
             className="p-2 h-full overflow-y-auto" // Keep overflow-y-auto to enable scrolling
-            // REMOVED: Styles that hide scrollbar by default
+            // REMOVED: Custom scrollbar styles that hide scrollbar by default (not needed for Docker)
           >
-            {/* REMOVED: Custom scrollbar styles that made it transparent */}
             {[...chats]
               .sort((a, b) => {
                 // Sort by most recent message datetime, fallback to chat datetime

@@ -7,6 +7,11 @@ interface HeaderProps {
   llms: string[];
 }
 
+// Define the base API URL using Vite's environment variable.
+// This variable will be set by Docker Compose during the build process.
+// The fallback is for local development outside Docker.
+const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:3001/api';
+
 export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -37,9 +42,10 @@ export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProp
                   setSelectedLLM(llm);
                   setDropdownOpen(false);
                   try {
-                    await axios.post('http://localhost:3001/api/ollama/start', { model: llm });
+                    // CHANGED: Use API_BASE_URL for API calls
+                    await axios.post(`${API_BASE_URL}/ollama/start`, { model: llm });
                   } catch (err) {
-                    alert('Failed to start Ollama model.');
+                    alert('Failed to start Ollama model.'); // Note: alert() is generally discouraged for better UX
                   }
                 }}
               >
