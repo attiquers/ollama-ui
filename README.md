@@ -1,90 +1,77 @@
-````
+
+-----
+
 # Ollama UI: Your Local AI Chat Companion 🤖💬
 
 ## Project Title and Description
 
-**Ollama UI** is a friendly web interface that lets you chat with Large Language Models (LLMs) right on your computer using Ollama. 🚀 It's designed for a smooth conversation experience, helping you manage chats, switch between your favorite models, and keep your AI interactions private and fast!
+**Ollama UI** is a friendly web interface that lets you chat with Large Language Models (LLMs) right on your computer using Ollama. 🚀 It's designed for a smooth conversation experience, helping you manage chats, switch between your favorite models, and keep your AI interactions private and fast\!
+
+-----
 
 ## Table of Contents
 
-* [🌟 Features](#features)
+  * [🌟 Features](https://www.google.com/search?q=%23features)
+  * [🛠️ Technologies Used](https://www.google.com/search?q=%23technologies-used)
+  * [✅ Prerequisites](https://www.google.com/search?q=%23prerequisites)
+  * [🚀 Getting Started](https://www.google.com/search?q=%23getting-started)
+      * [1. Clone the Repository](https://www.google.com/search?q=%231-clone-the-repository)
+      * [2. Create Frontend Environment File](https://www.google.com/search?q=%232-create-frontend-environment-file)
+      * [3. Run with Docker Compose](https://www.google.com/search?q=%233-run-with-docker-compose)
+  * [🌐 Accessing the Application](https://www.google.com/search?q=%23accessing-the-application)
+  * [🛑 Stopping the Application](https://www.google.com/search?q=%23stopping-the-application)
+  * [📂 Project Structure](https://www.google.com/search?q=%23project-structure)
+  * [📜 License](https://www.google.com/search?q=%23license)
 
-* [🛠️ Technologies Used](#technologies-used)
-
-* [✅ Prerequisites](#prerequisites)
-
-* [🚀 Getting Started](#getting-started)
-
-  * [1. Clone the Repository](#1-clone-the-repository)
-
-  * [2. Create Frontend Environment File](#2-create-frontend-environment-file)
-
-  * [3. Run with Docker Compose](#3-run-with-docker-compose)
-
-* [🌐 Accessing the Application](#accessing-the-application)
-
-* [🛑 Stopping the Application](#stopping-the-application)
-
-* [📂 Project Structure](#project-structure)
-
-* [📜 License](#license)
+-----
 
 ## 🌟 Features
 
-* **Intuitive Chat Interface:** A clean, responsive, and easy-to-use chat window. ✨
+  * **Intuitive Chat Interface:** A clean, responsive, and easy-to-use chat window. ✨
+  * **Local LLM Integration:** Connects directly to your local Ollama setup for private and super-fast AI chats. 🔒⚡
+  * **Chat History Management:** Your conversations are saved and easily accessible with MongoDB. 📚
+  * **Model Switching:** Hop between different LLMs available on your Ollama server with a click\! 🔄
+  * **Streaming Responses:** Watch AI responses appear in real-time, character by character. ✍️
+  * **Dockerized Deployment:** Simple setup and hassle-free portability across various systems. 🐳
 
-* **Local LLM Integration:** Connects directly to your local Ollama setup for private and super-fast AI chats. 🔒⚡
-
-* **Chat History Management:** Your conversations are saved and easily accessible with MongoDB. 📚
-
-* **Model Switching:** Hop between different LLMs available on your Ollama server with a click! 🔄
-
-* **Streaming Responses:** Watch AI responses appear in real-time, character by character. ✍️
-
-* **Dockerized Deployment:** Simple setup and hassle-free portability across various systems. 🐳
+-----
 
 ## 🛠️ Technologies Used
 
-* **Frontend:** React, TypeScript, Vite, Tailwind CSS, Axios, React Router DOM
+  * **Frontend:** React, TypeScript, Vite, Tailwind CSS, Axios, React Router DOM
+  * **Backend:** Node.js, Express.js, Mongoose (MongoDB ODM), Axios, `node-fetch`, CORS
+  * **Database:** MongoDB
+  * **LLM Runtime:** Ollama
+  * **Containerization:** Docker, Docker Compose
+  * **Web Server (Frontend):** Nginx
 
-* **Backend:** Node.js, Express.js, Mongoose (MongoDB ODM), Axios, `node-fetch`, CORS
-
-* **Database:** MongoDB
-
-* **LLM Runtime:** Ollama
-
-* **Containerization:** Docker, Docker Compose
-
-* **Web Server (Frontend):** Nginx
+-----
 
 ## ✅ Prerequisites
 
 Before you dive in, make sure you have these tools ready on your machine:
 
-* **Docker Desktop (or Docker Engine & Docker Compose):**
+  * **Docker Desktop (or Docker Engine & Docker Compose):**
+      * [Install Docker here](https://docs.docker.com/get-docker/) 🐳
+      * Confirm `docker compose` (the newer command without the hyphen) or `docker-compose` (the older command with the hyphen) works in your terminal.
+  * **Ollama:**
+      * [Download Ollama here](https://ollama.com/download) 🧠
+      * Ensure Ollama is running on your host machine (usually `http://localhost:11434`) and you've downloaded at least one LLM model (e.g., run `ollama run llama2` in your terminal to get started). This project uses your *host's* Ollama instance.
 
-  * [Install Docker here](https://docs.docker.com/get-docker/) 🐳
-
-  * Confirm `docker compose` (the newer command without the hyphen) or `docker-compose` (the older command with the hyphen) works in your terminal.
-
-* **Ollama:**
-
-  * [Download Ollama here](https://ollama.com/download) 🧠
-
-  * Ensure Ollama is running on your host machine (usually `http://localhost:11434`) and you've downloaded at least one LLM model (e.g., run `ollama run llama2` in your terminal to get started). This project uses your *host's* Ollama instance.
+-----
 
 ## 🚀 Getting Started
 
-Let's get your Ollama UI up and running with just a few commands!
+Let's get your Ollama UI up and running with just a few commands\!
 
-### 1. Clone the Repository
+### 1\. Clone the Repository
 
 First things first, grab the code from GitHub:
 
 ```bash
-git clone [https://github.com/your-username/ollama-ui.git](https://github.com/your-username/ollama-ui.git) # Don't forget to replace with your actual repo URL! 😉
+git clone https://github.com/attiquers/ollama-ui.git
 cd ollama-ui
-````
+```
 
 ### 2\. Create Frontend Environment File
 
@@ -113,15 +100,16 @@ cd ..
 
 Now for the magic\! ✨ From the root of your `ollama-ui` project (where you see `docker-compose.yml`), execute this command:
 
-```
+```bash
 docker compose up --build -d
 ```
 
   * `--build`: This tells Docker to build (or rebuild) your custom backend and frontend images. Essential for the first run or after code changes\! 🏗️
-
   * `-d`: Runs everything quietly in the background, so your terminal stays free. 🤫
 
 **Heads up\!** The very first time might take a few minutes as Docker downloads images and builds your app. Grab a coffee\! ☕
+
+-----
 
 ## 🌐 Accessing the Application
 
@@ -134,10 +122,10 @@ You should now see your awesome Ollama UI chat interface\!
 **Quick Access for Devs/Debugging:**
 
   * **Backend API:** `http://localhost:5000`
-
   * **MongoDB:** `mongodb://localhost:27018`
-
   * **Host Ollama:** `http://localhost:11434`
+
+-----
 
 ## 🛑 Stopping the Application
 
@@ -145,7 +133,7 @@ When you're done chatting and want to shut down the services:
 
 Navigate to the root of your `ollama-ui` project and run:
 
-```
+```bash
 docker compose down
 ```
 
@@ -153,11 +141,13 @@ This will gracefully stop and remove all containers, but don't worry, your Mongo
 
 Want to wipe everything clean and start fresh?
 
-```
+```bash
 docker compose down -v
 ```
 
 **🚨 Warning:** The `-v` flag will **permanently delete** your MongoDB data volumes\! Use with caution\!
+
+-----
 
 ## 📂 Project Structure
 
@@ -194,9 +184,10 @@ ollama-ui/
 └── docker-compose.yml          # The master plan! Orchestrates all services 🚢
 ```
 
+-----
+
 ## 📜 License
 
 This project is open-source and available under the [MIT License](https://opensource.org/licenses/MIT). Feel free to use, modify, and share\! 🤝
 
-```
-```
+-----
