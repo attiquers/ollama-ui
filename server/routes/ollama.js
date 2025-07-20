@@ -1,161 +1,169 @@
+// routes/ollama.js
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const Chat = require('../models/Chat'); // Corrected path to your Mongoose Chat model
+const Chat = require('../models/Chat');
 
-// Ensure you have an Ollama instance running and accessible
 const OLLAMA_API_BASE_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434';
 
-// Endpoint to list available Ollama models
-router.get('/list', async (req, res) => {
-    try {
-        const response = await axios.get(`${OLLAMA_API_BASE_URL}/api/tags`);
-        const modelsData = response.data.models.map(model => model.name);
-        res.json({ models: modelsData });
-    } catch (error) {
-        console.error("Error fetching Ollama models:", error);
-        res.status(500).json({ error: 'Failed to fetch Ollama models.' });
-    }
+router.get('/list', async (_, res) => {
+  try {
+    const { data } = await axios.get(`${OLLAMA_API_BASE_URL}/api/tags`);
+    console.log('[OLLAMA-LIST] returning models:', data.models.map(m => m.name));
+    res.json({ models: data.models.map(m => m.name) });
+  } catch (e) {
+    console.error('[OLLAMA-LIST] ERROR:', e.message);
+    res.status(500).json({ error: 'Failed to list models' });
+  }
 });
 
-// Endpoint to handle chat interactions with Ollama, including streaming and DB saving
 router.post('/chat', async (req, res) => {
-    const { model, messages, stream, chatId: clientChatId } = req.body;
+  const { model, messages, chatId: clientChatId } = req.body;
+  console.log('[OLLAMA-CHAT] Incoming chat request. Model:', model, 'Client Chat ID:', clientChatId, 'Messages length:', messages?.length);
 
-    if (!model || !messages || !Array.isArray(messages) || messages.length === 0) {
-        return res.status(400).json({ error: 'Model and a non-empty messages array are required.' });
+  if (!model || !Array.isArray(messages) || !messages.length) {
+    console.warn('[OLLAMA-CHAT] 400 – Model or messages missing');
+    return res.status(400).json({ error: 'Model and messages required' });
+  }
+
+  const lastUserMsg = messages[messages.length - 1];
+  if (lastUserMsg.role !== 'user' || !lastUserMsg.content) {
+    console.warn('[OLLAMA-CHAT] 400 – Last message not a valid user message');
+    return res.status(400).json({ error: 'Last message must be a user message with content.' });
+  }
+
+  let chat;
+  let hasSavedFinalResponse = false; // Flag to prevent multiple saves
+  let fullAI = ''; // Accumulate AI response here
+
+  try {
+    if (clientChatId) {
+      chat = await Chat.findById(clientChatId);
+      if (!chat) {
+        console.warn('[OLLAMA-CHAT] Chat not found for ID:', clientChatId, 'Creating new chat.');
+        // If chat not found for provided ID, create a new one as if no ID was provided
+        chat = new Chat({ messages: [], name: lastUserMsg.content.substring(0, 50) });
+      } else {
+        console.log('[OLLAMA-CHAT] Found existing chat with ID:', clientChatId);
+      }
+    } else {
+      console.log('[OLLAMA-CHAT] Creating NEW chat instance with ID: (will be generated)');
+      chat = new Chat({ messages: [], name: lastUserMsg.content.substring(0, 50) });
     }
 
-    let currentChat;
-    let accumulatedAiContent = '';
+    // Add user message to chat history and save immediately.
+    // This is the first and only 'save()' on the initial document instance.
+    chat.messages.push({ user: lastUserMsg.content, ai: '' });
+    await chat.save();
+    console.log('[OLLAMA-CHAT] User message saved to DB. Chat ID:', chat._id.toString());
 
-    // The last message in the array is the current user's prompt
-    const lastUserMessageInRequest = messages[messages.length - 1];
-    if (lastUserMessageInRequest.role !== 'user') {
-        return res.status(400).json({ error: 'The last message in the array must be a user message.' });
-    }
+    // Set X-Chat-ID header for the client
+    res.setHeader('X-Chat-ID', chat._id.toString());
+    res.setHeader('Content-Type', 'text/plain'); // Ensure content type for streaming
+    res.flushHeaders();
+    console.log('[OLLAMA-CHAT] Headers flushed. X-Chat-ID set to:', chat._id.toString());
 
-    try {
-        // Find or create chat
-        if (clientChatId) {
-            currentChat = await Chat.findById(clientChatId); // Still need to await finding an existing chat
-            if (!currentChat) {
-                return res.status(404).json({ error: 'Chat not found.' });
-            }
-        } else {
-            // Create a new chat instance in memory if no chatId is provided
-            currentChat = new Chat({
-                name: lastUserMessageInRequest.content.substring(0, 30) || `New Chat ${new Date().toLocaleString()}`,
-                messages: [], // Will be populated immediately below
-                datetime: new Date(),
-            });
-            // No need to await currentChat.save() here. We just need the _id for the header.
-            // The first actual save will be kicked off asynchronously below.
+    const ollamaRes = await axios.post(
+      `${OLLAMA_API_BASE_URL}/api/chat`,
+      { model, messages, stream: true },
+      { responseType: 'stream' }
+    );
+    console.log('[OLLAMA-CHAT] Ollama API request sent. Status:', ollamaRes.status);
+
+    // This function centralizes the logic for saving the AI response
+    // It uses findByIdAndUpdate to perform an atomic update, preventing VersionError
+    const saveAIResponse = async (errorMsg = '') => {
+      // Prevent duplicate saves
+      if (hasSavedFinalResponse) {
+        console.log('[OLLAMA-CHAT] Save already performed, skipping duplicate save.');
+        return;
+      }
+      hasSavedFinalResponse = true; // Set flag to true immediately
+
+      const lastIdx = chat.messages.length - 1; // Index of the last message (AI's reply)
+      if (lastIdx >= 0) {
+        let aiContentToSave = fullAI;
+        if (errorMsg) {
+          aiContentToSave += `\n[Error: ${errorMsg.substring(0, 100)}...]`;
         }
 
-        // Add the user's new message to the chat's messages array in memory
-        currentChat.messages.push({
-            user: lastUserMessageInRequest.content,
-            ai: '', // Placeholder for AI response
-            datetime: new Date(),
-        });
-        currentChat.datetime = new Date(); // Update chat's last activity time
+        const updateData = {
+          $set: {
+            [`messages.${lastIdx}.ai`]: aiContentToSave, // Update the specific AI message content
+            [`messages.${lastIdx}.datetime`]: new Date(), // Set datetime for this message
+            datetime: new Date() // Update the chat's last activity datetime
+          },
+          $inc: { __v: 1 } // Manually increment the version key to keep it in sync
+        };
 
-        // === OPTIMIZATION: Start the save operation for the user message WITHOUT AWAITING ===
-        // This makes the database write asynchronous and non-blocking,
-        // allowing the code to proceed immediately to the Ollama API call.
-        // The save will complete in the background. If it fails, it's logged.
-        // The final save (on stream end) will ensure consistency.
-        currentChat.save().catch(saveErr => {
-            console.error("Failed to save user message optimistically:", saveErr);
-            // Consider more robust error handling for critical DB failures here,
-            // e.g., if you absolutely must ensure the user message is saved before proceeding.
-            // For now, it proceeds to Ollama regardless, relying on the final save.
-        });
+        try {
+          // Use findByIdAndUpdate for an atomic update to prevent VersionError
+          const updatedChat = await Chat.findByIdAndUpdate(
+            chat._id,
+            updateData,
+            { new: true, overwrite: false, upsert: false } // new: return updated doc, overwrite: don't replace doc, upsert: don't create if not found
+          );
 
-
-        // Inform the client about the chat ID (especially if a new chat was created)
-        // Mongoose generates _id synchronously when a new document is instantiated.
-        res.setHeader('X-Chat-ID', currentChat._id.toString());
-        res.setHeader('Content-Type', 'text/plain'); // For SSE-like streaming
-
-        // Ollama API expects messages in { role: 'user' | 'assistant', content: string } format.
-        // The frontend App.tsx should now send messages in this format.
-        const ollamaMessages = messages; // Use the messages array directly from the request body
-
-        const ollamaResponse = await axios.post(
-            `${OLLAMA_API_BASE_URL}/api/chat`, // Ollama's chat endpoint
-            {
-                model,
-                messages: ollamaMessages,
-                stream
-            },
-            { responseType: 'stream' } // Always expect stream from Ollama if streaming
-        );
-
-        ollamaResponse.data.on('data', (chunk) => {
-            try {
-                const lines = chunk.toString().split('\n');
-                for (const line of lines) {
-                    if (line.trim() === '') continue;
-                    const json = JSON.parse(line);
-                    if (json.message && json.message.content) {
-                        accumulatedAiContent += json.message.content;
-                    }
-                    // Send each chunk back to the client
-                    res.write(JSON.stringify(json) + '\n');
-                }
-            } catch (e) {
-                console.error("Error parsing Ollama stream chunk:", e);
-                // If parsing fails, it's a corrupted stream, end response
-                if (!res.headersSent) { // Prevent setting headers if already sent by an earlier write
-                    res.status(500); // Set status, but don't re-send headers
-                }
-                res.write(JSON.stringify({ error: 'Stream parsing error.' }) + '\n');
-                res.end();
-            }
-        });
-
-        ollamaResponse.data.on('end', async () => {
-            // After successful stream completion, update the AI response in the DB
-            if (currentChat && accumulatedAiContent) {
-                try {
-                    // Find the last message (which was the user's message we just processed)
-                    // and update its AI response part.
-                    const lastMessageIndex = currentChat.messages.length - 1;
-                    if (lastMessageIndex >= 0 && currentChat.messages[lastMessageIndex].user === lastUserMessageInRequest.content) {
-                        currentChat.messages[lastMessageIndex].ai = accumulatedAiContent;
-                        currentChat.messages[lastMessageIndex].datetime = new Date(); // Update message datetime
-                        currentChat.datetime = new Date(); // Update chat's last activity time
-                        await currentChat.save(); // Await this final save to ensure consistency
-                        console.log(`Chat ${currentChat._id} updated with full AI response.`);
-                    }
-                } catch (saveError) {
-                    console.error("Error saving chat after full stream completion:", saveError);
-                }
-            }
-            res.end(); // End the HTTP response to the client
-        });
-
-        ollamaResponse.data.on('error', (err) => {
-            console.error("Ollama stream error:", err);
-            // Attempt to send an error message to client before ending
-            if (!res.headersSent) {
-                res.status(500); // Set status if not already sent
-            }
-            res.write(JSON.stringify({ error: 'Ollama streaming error: ' + err.message }) + '\n');
-            res.end();
-        });
-
-    } catch (error) {
-        console.error("Error during Ollama chat request or chat management:", error);
-        // If an error occurs before streaming starts (e.g., chat not found, Ollama unreachable)
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to process chat request or communicate with Ollama.' });
-        } else {
-            res.end(); // If headers sent (e.g., first write), just end the stream with error
+          if (!updatedChat) {
+            console.error('[OLLAMA-CHAT] Chat document not found for update, ID:', chat._id.toString());
+          } else {
+            console.log('[OLLAMA-CHAT] AI response saved to DB for chat ID:', chat._id.toString());
+          }
+        } catch (dbError) {
+          console.error('[OLLAMA-CHAT] Database save error (VersionError likely if findByIdAndUpdate fails unexpectedly):', dbError.message);
         }
+      }
+
+      // Ensure the response stream to the client is ended
+      if (!res.writableEnded) {
+        res.end();
+        console.log('[OLLAMA-CHAT] Client response ended.');
+      }
+    };
+
+    // --- Stream Event Listeners ---
+    // Handles data chunks from Ollama
+    ollamaRes.data.on('data', chunk => {
+      const lines = chunk.toString().split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const json = JSON.parse(line);
+          if (json.message?.content) fullAI += json.message.content;
+          res.write(line + '\n'); // Write to client
+        } catch (e) {
+          console.warn('[OLLAMA-CHAT] Malformed JSON chunk from Ollama:', line);
+        }
+      }
+    });
+
+    // Handles the normal end of the Ollama stream
+    ollamaRes.data.on('end', async () => {
+      console.log('[OLLAMA-CHAT] Ollama stream ended. Full AI response length:', fullAI.length);
+      await saveAIResponse(); // Save the full response
+    });
+
+    // Handles errors from the Ollama stream (e.g., Ollama server issue)
+    ollamaRes.data.on('error', async e => {
+      console.error('[OLLAMA-CHAT] Ollama stream error:', e.message);
+      await saveAIResponse(e.message); // Save partial response with error message
+    });
+
+    // Handles client connection closing (e.g., user stops generation)
+    res.on('close', async () => {
+      console.log('[OLLAMA-CHAT] Client connection closed. Checking for partial AI response to save.');
+      await saveAIResponse('Client Disconnected'); // Save partial response indicating disconnect
+    });
+
+  } catch (error) {
+    console.error('[OLLAMA-CHAT] Error during chat processing or database operation:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to process chat request.' });
+    } else if (!res.writableEnded) {
+      res.write(JSON.stringify({ error: 'Server internal error during chat stream.' }) + '\n');
+      res.end();
     }
+  }
 });
 
 module.exports = router;

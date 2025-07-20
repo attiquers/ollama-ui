@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+// src/App.tsx
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+} from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ChatInput from '@/components/ChatInput';
 import CurrentHistory from '@/components/CurrentHistory';
-import { useParams } from 'react-router-dom';
+// Removed useParams from App.tsx as it's handled in ChatRoutes.tsx
+// import { useParams } from 'react-router-dom';
 
-// Use a simpler Message type for frontend UI
 interface Message {
   user: string;
   ai: string;
@@ -13,12 +20,12 @@ interface Message {
 interface ChatData {
   _id: string;
   name: string;
-  messages: Array<{ user: string; ai: string; datetime?: string }>; // Messages from DB might have datetime
+  messages: Array<{ user: string; ai: string; datetime?: string }>;
   datetime: string;
 }
 
 interface AppProps {
-  chatId: string | null;
+  chatId: string | null; // This is propChatId from ChatRoutes.tsx
   selectedLLM: string;
   setSelectedLLM: (llm: string) => void;
   chatsData: ChatData[];
@@ -29,305 +36,239 @@ interface AppProps {
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
 
-function App({
-  chatId: propChatId,
+export default function App({
+  chatId: propChatId, // Renamed for clarity in App.tsx to avoid confusion with internal state
   selectedLLM,
   setSelectedLLM,
   chatsData,
   setSelectedChatId,
-  selectedChatId,
-  setChatsData
+  selectedChatId, // The central selectedChatId state from ChatRoutes.tsx
+  setChatsData,
 }: AppProps) {
   const [currentChatMessages, setCurrentChatMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [hasInteracted, setHasInteracted] = useState(false);
 
-  // Add a ref to store the AbortController for the ongoing generation request
   const abortControllerRef = useRef<AbortController | null>(null);
-  // Ref to store the actual chat ID being used for the current generation
-  const currentGenerationChatIdRef = useRef<string | null>(null);
+  const navigate = useNavigate();
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentChatMessages]);
 
-  // Sync route chatId with internal selectedChatId state
-  useEffect(() => {
-    if (propChatId !== selectedChatId) {
-      setSelectedChatId(propChatId ?? null);
-    }
-  }, [propChatId, selectedChatId, setSelectedChatId]);
+  // Removed the problematic useEffect that was resetting selectedChatId to null.
+  // The selectedChatId is now primarily managed by the setSelectedChatId prop from ChatRoutes.tsx.
+  // When navigation occurs, ChatRoutes.tsx's useParams will update its selectedChatId state,
+  // which then propagates correctly to this component via the selectedChatId prop.
+  // The sendMessage function will also directly update selectedChatId via setSelectedChatId prop.
 
-  // Load chat messages when selected chat changes
   useEffect(() => {
-    const chat = chatsData.find((c) => c._id === selectedChatId);
+    console.log('[App useEffect] selectedChatId for chat data fetch:', selectedChatId);
+    const chat = chatsData.find(c => c._id === selectedChatId);
     if (chat) {
-      // Map DB messages to frontend Message type
+      console.log('[App useEffect] Found chat data for ID:', selectedChatId);
       setCurrentChatMessages(chat.messages.map(m => ({ user: m.user, ai: m.ai || '' })));
-      setHasInteracted(true); // Mark as interacted if a chat is loaded
+      setHasInteracted(true);
     } else if (!selectedChatId) {
-      // If no chat selected, clear messages, unless already interacted (e.g., in a new unsaved chat)
+      console.log('[App useEffect] No chat selected, clearing messages.');
       setCurrentChatMessages([]);
       setHasInteracted(false);
+    } else {
+      console.log('[App useEffect] Chat data not found for ID:', selectedChatId);
     }
   }, [selectedChatId, chatsData]);
 
-  // Persist selected LLM in localStorage
   useEffect(() => {
-    const storedLLM = localStorage.getItem('selectedLLM');
-    if (storedLLM) { // Only set if something is stored
-      setSelectedLLM(storedLLM);
+    const saved = localStorage.getItem('selectedLLM');
+    if (saved) {
+      setSelectedLLM(saved);
+      console.log('[App useEffect] Loaded selected LLM from localStorage:', saved);
     }
-  }, [setSelectedLLM]); // Dependency array should include setSelectedLLM to avoid lint warnings
+  }, [setSelectedLLM]);
 
   useEffect(() => {
     if (selectedLLM) {
       localStorage.setItem('selectedLLM', selectedLLM);
+      console.log('[App useEffect] Saved selected LLM to localStorage:', selectedLLM);
     }
   }, [selectedLLM]);
 
-  // Function to re-fetch chats from the backend (for sidebar update)
   const refetchChats = useCallback(async () => {
+    console.log('[App refetchChats] Attempting to refetch chats...');
     try {
-      const res = await axios.get<ChatData[]>(`${API_BASE_URL}/chats`);
-      setChatsData(res.data);
-    } catch (error) {
-      console.error("Error re-fetching chats:", error);
+      const { data } = await axios.get<ChatData[]>(`${API_BASE_URL}/chats`);
+      setChatsData(data);
+      console.log('[App refetchChats] Chats refetched successfully. Total chats:', data.length);
+    } catch (e) {
+      console.error('[App refetchChats] Error refetching chats:', e);
     }
   }, [setChatsData]);
 
-  // Function to save current chat messages (used for partial saves on stop)
-  const savePartialChat = useCallback(async (chatId: string | null, messages: Message[]) => {
-    if (!chatId) {
-      console.warn("Attempted to save partial chat without a chatId.");
-      return;
-    }
-    try {
-      // Map frontend messages to a format suitable for DB save, adding datetime
-      const messagesToSave = messages.map(msg => ({
-        user: msg.user,
-        ai: msg.ai,
-        datetime: new Date().toISOString() // Backend's Chat model will convert this to Date
-      }));
-
-      await axios.post(`${API_BASE_URL}/chats/${chatId}/save`, { messages: messagesToSave });
-      console.log('Partial chat saved successfully!');
-      refetchChats(); // Refresh sidebar to show latest state
-    } catch (error) {
-      console.error("Error saving partial chat:", error);
-    }
-  }, [refetchChats]);
-
-  // Function to stop the ongoing generation
   const stopGeneration = useCallback(() => {
-    if (abortControllerRef.current) {
-      console.log("Aborting AI generation...");
-      abortControllerRef.current.abort();
-      setIsLoading(false); // Stop loading indicator immediately
+    console.log('[App stopGeneration] Stopping generation...');
+    abortControllerRef.current?.abort();
+    setIsLoading(false);
+  }, []);
 
-      // Save the current partial messages (if any AI response was accumulated)
-      if (currentGenerationChatIdRef.current && currentChatMessages.length > 0) {
-        // We save the `currentChatMessages` as they are, including any partial AI content.
-        // The backend's /chats/:chatId/save endpoint handles overwriting the last message.
-        savePartialChat(currentGenerationChatIdRef.current, currentChatMessages);
-      }
-    }
-  }, [currentChatMessages, savePartialChat]);
-
-  const sendMessage = useCallback(async (text: string) => {
-    if (!selectedLLM) {
-      alert('Please select an LLM first!');
-      return;
-    }
-
-    // Stop any ongoing generation before starting a new one
-    if (isLoading) {
-      stopGeneration();
-    }
-
-    setIsLoading(true);
-    setHasInteracted(true);
-
-    // Optimistically add user message to UI
-    const newUserMessage: Message = { user: text, ai: '' };
-    setCurrentChatMessages((prev) => [...prev, newUserMessage]);
-
-    // Create a new AbortController for this request
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController; // Store for potential aborting
-
-    let currentChatId = selectedChatId;
-    currentGenerationChatIdRef.current = selectedChatId; // Store for partial save on abort
-
-    try {
-      // Build messages array for the backend in Ollama's expected format:
-      // [{ role: 'user', content: '...' }, { role: 'assistant', content: '...' }]
-      const messagesForBackend: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-
-      currentChatMessages.forEach(msg => {
-          messagesForBackend.push({ role: 'user', content: msg.user });
-          if (msg.ai && msg.ai.trim() !== '') { // Only include AI message if it has content
-              messagesForBackend.push({ role: 'assistant', content: msg.ai });
-          }
-      });
-      // Add the new user message to the end of the history for the current prompt
-      messagesForBackend.push({ role: 'user', content: text });
-
-
-      const response = await fetch(`${API_BASE_URL}/ollama/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: selectedLLM,
-          messages: messagesForBackend,
-          stream: true,
-          chatId: currentChatId, // Pass current chat ID (null if new chat)
-        }),
-        signal: abortController.signal, // Pass the signal to abort the fetch
-      });
-
-      // Get X-Chat-ID from response headers if a new chat was created by the backend
-      const newChatIdFromHeader = response.headers.get('X-Chat-ID');
-      if (newChatIdFromHeader && !currentChatId) {
-        currentChatId = newChatIdFromHeader;
-        setSelectedChatId(currentChatId); // Update selected chat ID in parent state
-        currentGenerationChatIdRef.current = currentChatId; // Update ref too
-      }
-
-      if (!response.body) {
-        console.error('No response body received from Ollama stream.');
-        setIsLoading(false);
-        abortControllerRef.current = null;
-        currentGenerationChatIdRef.current = null;
+  const sendMessage = useCallback(
+    async (text: string) => {
+      console.log('[App sendMessage] Message received:', text);
+      if (!selectedLLM) {
+        alert('Please select an LLM first!');
+        console.warn('[App sendMessage] No LLM selected.');
         return;
       }
+      if (isLoading) {
+        console.log('[App sendMessage] Already loading, stopping current generation.');
+        stopGeneration();
+      }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let aiAccumulatedText = '';
-      let buffer = '';
-      let streamDone = false;
+      setIsLoading(true);
+      setHasInteracted(true);
 
-      while (!streamDone) {
-        const { value, done: doneReading } = await reader.read();
+      const newUserMsg: Message = { user: text, ai: '' };
+      setCurrentChatMessages(prev => [...prev, newUserMsg]);
+      console.log('[App sendMessage] Added new user message to UI:', newUserMsg);
 
-        // Check if the request was aborted during reading
-        if (abortController.signal.aborted) {
-          console.log("Frontend: Fetch request was aborted during stream processing.");
-          streamDone = true;
-          break; // Exit the loop
+      const abortCtrl = new AbortController();
+      abortControllerRef.current = abortCtrl;
+      console.log('[App sendMessage] AbortController created.');
+
+      const backendMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      currentChatMessages.forEach(m => {
+        backendMessages.push({ role: 'user', content: m.user });
+        if (m.ai.trim()) backendMessages.push({ role: 'assistant', content: m.ai });
+      });
+      backendMessages.push({ role: 'user', content: text });
+      console.log('[App sendMessage] Backend messages prepared. Current selectedChatId for request:', selectedChatId);
+
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/ollama/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: selectedLLM,
+            messages: backendMessages,
+            stream: true,
+            chatId: selectedChatId,
+          }),
+          signal: abortCtrl.signal,
+        });
+
+        console.log('[App sendMessage] Fetch request sent. Response status:', res.status);
+
+        // 🔥 NEW LOGGING HERE: Log all headers received by JavaScript
+        console.log('[App sendMessage] All response headers (as seen by JS):');
+        for (const [key, value] of res.headers.entries()) {
+          console.log(`    ${key}: ${value}`);
         }
 
-        buffer += decoder.decode(value, { stream: true });
+        const returnedChatId = res.headers.get('X-Chat-ID');
+        console.log('[App sendMessage] X-Chat-ID header received:', returnedChatId);
 
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete last line in buffer
+        if (returnedChatId && !selectedChatId) {
+          console.log(`[App sendMessage] New chat created! Old selectedChatId was null. Setting new ID and navigating.`);
+          setSelectedChatId(returnedChatId); // Update the central state
+          navigate(`/chat/${returnedChatId}`);
+          console.log(`[App sendMessage] Navigation triggered to: /chat/${returnedChatId}`);
+        } else if (returnedChatId && selectedChatId) {
+          console.log(`[App sendMessage] Existing chat updated. Chat ID: ${returnedChatId}.`);
+          // Even if chat is updated, ensure the current selected chat ID is correct
+          if (returnedChatId !== selectedChatId) {
+            console.warn(`[App sendMessage] Mismatch! Backend returned ${returnedChatId} but selectedChatId is ${selectedChatId}. Correcting.`);
+            setSelectedChatId(returnedChatId); // Update the central state
+            navigate(`/chat/${returnedChatId}`); // Re-navigate if ID changes unexpectedly
+          }
+        } else if (!returnedChatId) {
+          console.warn('[App sendMessage] No X-Chat-ID header returned from backend for this request.');
+        }
 
-        for (const line of lines) {
-          if (line.trim() === '') continue;
 
-          try {
-            const jsonChunk = JSON.parse(line);
-            if (jsonChunk.message && jsonChunk.message.content) {
-              aiAccumulatedText += jsonChunk.message.content;
+        const reader = res.body!.getReader();
+        const dec = new TextDecoder();
+        let buffer = '';
+        let ai = '';
 
-              setCurrentChatMessages((prev) => {
-                const updated = [...prev];
-                // Ensure we update the AI part of the last message (the one currently being generated)
-                if (updated.length > 0) {
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    ai: aiAccumulatedText
-                  };
-                }
-                return updated;
-              });
-              chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-            }
-
-            if (jsonChunk.done) {
-              streamDone = true;
-              break;
-            }
-          } catch (error) {
-            console.error("Error parsing JSON chunk from stream:", error, "Line:", line);
-            streamDone = true; // Stop processing this stream due to error
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log('[App sendMessage] AI stream finished.');
             break;
           }
-        }
-        if (doneReading && buffer.trim() === '') {
-          streamDone = true;
-        }
-      }
-
-      // After stream is done (either completed or aborted by user via signal)
-      // The backend (ollama.js) should have handled saving the full AI response to DB.
-      // We just need to ensure frontend state is consistent and refresh the sidebar chats.
-      console.log("Stream processing completed/aborted.");
-      refetchChats(); // Refresh chats data to update sidebar and local state with final save
-
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        console.log("Fetch request aborted by user (catch block).");
-        // The stopGeneration function already initiated savePartialChat and UI updates
-        // No further action needed here for saving or UI state specific to this abort.
-      } else {
-        console.error("Error during sendMessage or Ollama stream:", error);
-        setCurrentChatMessages((prev) => {
-            const updated = [...prev];
-            if (updated.length > 0) {
-                // If AI response was empty or partial, mark it as failed
-                const lastMessage = updated[updated.length - 1];
-                if (lastMessage.ai === '' || lastMessage.ai === '[Generation stopped]') {
-                    lastMessage.ai = `Error: ${error.message || 'Failed to get response'}`;
-                }
+          buffer += dec.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const l of lines) {
+            if (!l.trim()) continue;
+            try {
+              const json = JSON.parse(l);
+              if (json.message?.content) {
+                ai += json.message.content;
+                setCurrentChatMessages(prev => {
+                  const upd = [...prev];
+                  if (upd.length) upd[upd.length - 1].ai = ai;
+                  return upd;
+                });
+              }
+            } catch {
+              /* ignore invalid json */
+              console.warn('[App sendMessage] Malformed JSON received from stream:', l);
             }
-            return updated;
-        });
+          }
+        }
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          console.log('[App sendMessage] Request aborted by user.');
+        } else {
+          console.error('[App sendMessage] Error during message sending:', e);
+          setCurrentChatMessages(prev => {
+            const upd = [...prev];
+            if (upd.length && !upd[upd.length - 1].ai)
+              upd[upd.length - 1].ai = 'Error: ' + e.message;
+            return upd;
+          });
+        }
+      } finally {
+        setIsLoading(false);
+        abortControllerRef.current = null;
+        console.log('[App sendMessage] Finalizing, refetching chats...');
+        refetchChats();
       }
-    } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null; // Clear AbortController ref
-      currentGenerationChatIdRef.current = null; // Clear current generation chat ID ref
-    }
-  }, [selectedLLM, selectedChatId, currentChatMessages, refetchChats, setSelectedChatId, stopGeneration, savePartialChat]);
+    },
+    [selectedLLM, selectedChatId, currentChatMessages, isLoading, refetchChats, setSelectedChatId, navigate, stopGeneration]
+  );
 
   return (
     <div className="flex-1 flex bg-[#1B1C1D] items-center justify-center min-h-screen w-[60vw]">
       {(selectedChatId || hasInteracted || currentChatMessages.length > 0) ? (
         <div className="flex flex-col items-center justify-end pb-20 w-[60vw] min-h-screen relative">
           <CurrentHistory
-            messages={
-              currentChatMessages.flatMap((m) => [
-                { role: 'user' as const, content: m.user },
-                { role: 'assistant' as const, content: m.ai, blinking: isLoading && m.ai === '' }
-              ])
-            }
+            messages={currentChatMessages.flatMap(m => [
+              { role: 'user' as const, content: m.user },
+              { role: 'assistant' as const, content: m.ai, blinking: isLoading && !m.ai },
+            ])}
           />
           <div ref={chatEndRef} />
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center w-[60vw] min-h-screen relative">
           <div className="flex flex-col items-center w-full justify-end pb-20">
-            <div>
-              <img src="ollama.svg" alt="Ollama Logo" className='h-50 pb-4' />
-            </div>
-            <div className="mb-8 text-center">
-              <h2 className="text-4xl font-extrabold text-white mb-2">Private, Fast, Secure</h2>
-            </div>
+            <img src="ollama.svg" alt="Ollama Logo" className="h-50 pb-4" />
+            <h2 className="text-4xl font-extrabold text-white mb-2">
+              Private, Fast, Secure
+            </h2>
           </div>
           <div ref={chatEndRef} />
         </div>
       )}
-      <div className='fixed bottom-0 bg-[#1B1C1D] pb-4 rounded-sm z-30'>
-        <footer className='w-[60vw]'>
+      <div className="fixed bottom-0 bg-[#1B1C1D] pb-4 rounded-sm z-30">
+        <footer className="w-[60vw]">
           <ChatInput onSend={sendMessage} isLoading={isLoading} onStop={stopGeneration} />
         </footer>
       </div>
     </div>
   );
 }
-
-export default App;

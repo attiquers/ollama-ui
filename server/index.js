@@ -36,7 +36,8 @@ const corsOptions = {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Chat-ID'],
+  exposedHeaders: ['X-Chat-ID'], // <--- THIS IS THE NEW CRITICAL CHANGE
   credentials: true
 };
 
@@ -46,7 +47,7 @@ app.use(express.json());
 
 // 🔍 Debug: Log incoming origins
 app.use((req, res, next) => {
-  console.log('🌐 Incoming request from:', req.headers.origin);
+  console.log('🌐 Incoming request from:', req.headers.origin, 'Path:', req.path);
   next();
 });
 
@@ -54,11 +55,13 @@ app.use((req, res, next) => {
 app.use('/api/chats', chatsRoutes);
 app.use('/api/ollama', ollamaRoutes);
 
-// ✅ /generate endpoint (calls Ollama directly)
+// ✅ /generate endpoint (calls Ollama directly) - For direct generation, not used in main chat flow
 app.post('/generate', async (req, res) => {
   const { model, prompt } = req.body;
+  console.log('[GENERATE] Request received. Model:', model, 'Prompt length:', prompt?.length);
 
   if (!model || !prompt) {
+    console.warn('[GENERATE] 400 - Model or prompt missing.');
     return res.status(400).json({ error: 'Model and prompt are required.' });
   }
 
@@ -71,24 +74,25 @@ app.post('/generate', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('❌ Ollama API error:', errorData);
+      console.error('❌ Ollama API error for /generate:', errorData);
       return res.status(response.status).json({
         error: errorData.error || 'Failed to generate response from Ollama.'
       });
     }
 
     const data = await response.json();
+    console.log('[GENERATE] Ollama response received.');
     res.json({ response: data.response });
 
   } catch (error) {
-    console.error('❌ Error communicating with Ollama:', error);
+    console.error('❌ Error communicating with Ollama for /generate:', error);
     res.status(500).json({ error: 'Failed to communicate with Ollama service.' });
   }
 });
 
 // ✅ Global error handler (CORS-safe)
 app.use((err, req, res, next) => {
-  console.error('🔥 Unhandled error:', err.message);
+  console.error('🔥 Unhandled error in Express app:', err.message, err.stack);
   if (!res.headersSent) {
     res.status(500).json({ error: 'Internal Server Error' });
   }

@@ -1,3 +1,4 @@
+// src/ChatRoutes.tsx
 import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from 'react-router-dom';
 import App from './App';
 import Header from './components/Header';
@@ -7,41 +8,28 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
 
-
-function ChatAppWrapper({
-  llms, selectedLLM, setSelectedLLM, chatsData, setSelectedChatId, selectedChatId
-}: any) {
-  // --- REMOVE THE TYPE ARGUMENT HERE ---
+function ChatAppWrapper(props: any) {
   const { chatId } = useParams();
-  // --- END OF CHANGE ---
-  return <App
-    chatId={chatId || null}
-    llms={llms}
-    selectedLLM={selectedLLM}
-    setSelectedLLM={setSelectedLLM}
-    chatsData={chatsData}
-    setSelectedChatId={setSelectedChatId}
-    selectedChatId={selectedChatId}
-  />;
+  return <App {...props} chatId={chatId || null} />;
 }
 
 export default function ChatRoutes() {
   const [llms, setLlms] = useState<string[]>([]);
-  const [selectedLLM, setSelectedLLM] = useState<string>("");
+  const [selectedLLM, setSelectedLLM] = useState<string>('');
   const [chatsData, setChatsData] = useState<any[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/ollama/list`)
       .then(res => setLlms(res.data.models))
-      .catch((error) => {
-        console.error("Error fetching LLM list:", error);
+      .catch(e => {
+        console.error('[ROUTES] error loading models', e);
         setLlms([]);
       });
     axios.get(`${API_BASE_URL}/chats`)
       .then(res => setChatsData(res.data))
-      .catch((error) => {
-        console.error("Error fetching chats:", error);
+      .catch(e => {
+        console.error('[ROUTES] error loading chats', e);
         setChatsData([]);
       });
   }, []);
@@ -54,8 +42,30 @@ export default function ChatRoutes() {
       <div className="flex flex-row flex-1">
         <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
         <Routes>
-          <Route path="/chat/:chatId" element={<ChatAppWrapper llms={llms} selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} chatsData={chatsData} setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} />} />
-          <Route path="/" element={<App chatId={null} llms={llms} selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} chatsData={chatsData} setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} />} />
+          <Route path="/chat/:chatId" element={
+            <App
+              chatId={null} // propChatId will be filled by route
+              llms={llms}
+              selectedLLM={selectedLLM}
+              setSelectedLLM={setSelectedLLM}
+              chatsData={chatsData}
+              setSelectedChatId={setSelectedChatId}
+              selectedChatId={selectedChatId}
+              setChatsData={setChatsData}
+            />
+          } />
+          <Route path="/" element={
+            <App
+              chatId={null}
+              llms={llms}
+              selectedLLM={selectedLLM}
+              setSelectedLLM={setSelectedLLM}
+              chatsData={chatsData}
+              setSelectedChatId={setSelectedChatId}
+              selectedChatId={selectedChatId}
+              setChatsData={setChatsData}
+            />
+          } />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
