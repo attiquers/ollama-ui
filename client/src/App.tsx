@@ -1,16 +1,16 @@
-// src/App.tsx
 import {
   useEffect,
   useRef,
   useState,
   useCallback,
+  // Removed unused type imports:
+  // type Dispatch,
+  // type SetStateAction,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import ChatInput from '@/components/ChatInput';
 import CurrentHistory from '@/components/CurrentHistory';
-// Removed useParams from App.tsx as it's handled in ChatRoutes.tsx
-// import { useParams } from 'react-router-dom';
 
 interface Message {
   user: string;
@@ -25,25 +25,29 @@ interface ChatData {
 }
 
 interface AppProps {
-  chatId: string | null; // This is propChatId from ChatRoutes.tsx
   selectedLLM: string;
   setSelectedLLM: (llm: string) => void;
   chatsData: ChatData[];
   setSelectedChatId: (id: string | null) => void;
   selectedChatId: string | null;
   setChatsData: (data: ChatData[]) => void;
+  // Removed llms and setLlms from AppProps as App does not use them directly:
+  // llms: string[];
+  // setLlms: Dispatch<SetStateAction<string[]>>;
 }
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export default function App({
-  chatId: propChatId, // Renamed for clarity in App.tsx to avoid confusion with internal state
   selectedLLM,
   setSelectedLLM,
   chatsData,
   setSelectedChatId,
-  selectedChatId, // The central selectedChatId state from ChatRoutes.tsx
+  selectedChatId,
   setChatsData,
+  // Removed llms and setLlms from destructuring as they are not used in App:
+  // llms,
+  // setLlms,
 }: AppProps) {
   const [currentChatMessages, setCurrentChatMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -56,12 +60,6 @@ export default function App({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentChatMessages]);
-
-  // Removed the problematic useEffect that was resetting selectedChatId to null.
-  // The selectedChatId is now primarily managed by the setSelectedChatId prop from ChatRoutes.tsx.
-  // When navigation occurs, ChatRoutes.tsx's useParams will update its selectedChatId state,
-  // which then propagates correctly to this component via the selectedChatId prop.
-  // The sendMessage function will also directly update selectedChatId via setSelectedChatId prop.
 
   useEffect(() => {
     console.log('[App useEffect] selectedChatId for chat data fetch:', selectedChatId);
@@ -143,7 +141,6 @@ export default function App({
       backendMessages.push({ role: 'user', content: text });
       console.log('[App sendMessage] Backend messages prepared. Current selectedChatId for request:', selectedChatId);
 
-
       try {
         const res = await fetch(`${API_BASE_URL}/ollama/chat`, {
           method: 'POST',
@@ -159,7 +156,6 @@ export default function App({
 
         console.log('[App sendMessage] Fetch request sent. Response status:', res.status);
 
-        // 🔥 NEW LOGGING HERE: Log all headers received by JavaScript
         console.log('[App sendMessage] All response headers (as seen by JS):');
         for (const [key, value] of res.headers.entries()) {
           console.log(`    ${key}: ${value}`);
@@ -170,21 +166,19 @@ export default function App({
 
         if (returnedChatId && !selectedChatId) {
           console.log(`[App sendMessage] New chat created! Old selectedChatId was null. Setting new ID and navigating.`);
-          setSelectedChatId(returnedChatId); // Update the central state
+          setSelectedChatId(returnedChatId);
           navigate(`/chat/${returnedChatId}`);
           console.log(`[App sendMessage] Navigation triggered to: /chat/${returnedChatId}`);
         } else if (returnedChatId && selectedChatId) {
           console.log(`[App sendMessage] Existing chat updated. Chat ID: ${returnedChatId}.`);
-          // Even if chat is updated, ensure the current selected chat ID is correct
           if (returnedChatId !== selectedChatId) {
             console.warn(`[App sendMessage] Mismatch! Backend returned ${returnedChatId} but selectedChatId is ${selectedChatId}. Correcting.`);
-            setSelectedChatId(returnedChatId); // Update the central state
-            navigate(`/chat/${returnedChatId}`); // Re-navigate if ID changes unexpectedly
+            setSelectedChatId(returnedChatId);
+            navigate(`/chat/${returnedChatId}`);
           }
         } else if (!returnedChatId) {
           console.warn('[App sendMessage] No X-Chat-ID header returned from backend for this request.');
         }
-
 
         const reader = res.body!.getReader();
         const dec = new TextDecoder();

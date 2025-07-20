@@ -1,5 +1,4 @@
-// src/ChatRoutes.tsx
-import { BrowserRouter as Router, Routes, Route, useParams, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App';
 import Header from './components/Header';
 import SideBar from './components/SideBar';
@@ -7,11 +6,6 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
-
-function ChatAppWrapper(props: any) {
-  const { chatId } = useParams();
-  return <App {...props} chatId={chatId || null} />;
-}
 
 export default function ChatRoutes() {
   const [llms, setLlms] = useState<string[]>([]);
@@ -42,30 +36,38 @@ export default function ChatRoutes() {
       <div className="flex flex-row flex-1">
         <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
         <Routes>
-          <Route path="/chat/:chatId" element={
-            <App
-              chatId={null} // propChatId will be filled by route
-              llms={llms}
-              selectedLLM={selectedLLM}
-              setSelectedLLM={setSelectedLLM}
-              chatsData={chatsData}
-              setSelectedChatId={setSelectedChatId}
-              selectedChatId={selectedChatId}
-              setChatsData={setChatsData}
-            />
-          } />
-          <Route path="/" element={
-            <App
-              chatId={null}
-              llms={llms}
-              selectedLLM={selectedLLM}
-              setSelectedLLM={setSelectedLLM}
-              chatsData={chatsData}
-              setSelectedChatId={setSelectedChatId}
-              selectedChatId={selectedChatId}
-              setChatsData={setChatsData}
-            />
-          } />
+          <Route
+            path="/chat/:chatId"
+            element={
+              <App
+                selectedLLM={selectedLLM}
+                setSelectedLLM={setSelectedLLM}
+                chatsData={chatsData}
+                setSelectedChatId={setSelectedChatId}
+                selectedChatId={selectedChatId}
+                setChatsData={setChatsData}
+                // Removed llms and setLlms here as App does not need them:
+                // llms={llms}
+                // setLlms={setLlms}
+              />
+            }
+          />
+          <Route
+            path="/"
+            element={
+              <App
+                selectedLLM={selectedLLM}
+                setSelectedLLM={setSelectedLLM}
+                chatsData={chatsData}
+                setSelectedChatId={setSelectedChatId}
+                selectedChatId={selectedChatId}
+                setChatsData={setChatsData}
+                // Removed llms and setLlms here as App does not need them:
+                // llms={llms}
+                // setLlms={setLlms}
+              />
+            }
+          />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
