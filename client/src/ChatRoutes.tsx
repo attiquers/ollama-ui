@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import App from './App';
 import Header from './components/Header';
 import SideBar from './components/SideBar';
@@ -9,9 +9,15 @@ const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost
 
 export default function ChatRoutes() {
   const [llms, setLlms] = useState<string[]>([]);
-  const [selectedLLM, setSelectedLLM] = useState<string>('');
+  const [selectedLLM, setSelectedLLM] = useState<string>(() => {
+    // Initialize selectedLLM from localStorage on first render
+    return localStorage.getItem('selectedLLM') || '';
+  });
   const [chatsData, setChatsData] = useState<any[]>([]);
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(() => {
+    // Initialize selectedChatId from localStorage on first render
+    return localStorage.getItem('selectedChatId') || null;
+  });
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/ollama/list`)
@@ -20,13 +26,49 @@ export default function ChatRoutes() {
         console.error('[ROUTES] error loading models', e);
         setLlms([]);
       });
+
+    // Fetch chats and try to set selectedChatId from localStorage or first chat
     axios.get(`${API_BASE_URL}/chats`)
-      .then(res => setChatsData(res.data))
+      .then(res => {
+        setChatsData(res.data);
+        const storedChatId = localStorage.getItem('selectedChatId');
+        if (storedChatId && res.data.some((chat: any) => chat._id === storedChatId)) {
+          setSelectedChatId(storedChatId);
+        } else if (res.data.length > 0) {
+          // If stored ID is invalid or no stored ID, default to the first chat
+          setSelectedChatId(res.data[0]._id);
+          localStorage.setItem('selectedChatId', res.data[0]._id);
+        } else {
+          // If no chats exist, ensure selectedChatId is null
+          setSelectedChatId(null);
+          localStorage.removeItem('selectedChatId');
+        }
+      })
       .catch(e => {
         console.error('[ROUTES] error loading chats', e);
         setChatsData([]);
+        setSelectedChatId(null); // Clear selected chat on error
+        localStorage.removeItem('selectedChatId');
       });
-  }, []);
+  }, []); // Run only once on component mount
+
+  // Effect to save selectedLLM to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedLLM) {
+      localStorage.setItem('selectedLLM', selectedLLM);
+    } else {
+      localStorage.removeItem('selectedLLM');
+    }
+  }, [selectedLLM]);
+
+  // Effect to save selectedChatId to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedChatId) {
+      localStorage.setItem('selectedChatId', selectedChatId);
+    } else {
+      localStorage.removeItem('selectedChatId');
+    }
+  }, [selectedChatId]);
 
   return (
     <Router>
@@ -44,11 +86,8 @@ export default function ChatRoutes() {
                 setSelectedLLM={setSelectedLLM}
                 chatsData={chatsData}
                 setSelectedChatId={setSelectedChatId}
-                selectedChatId={selectedChatId}
+                selectedChatId={selectedChatId} // This will be managed by App component from URL
                 setChatsData={setChatsData}
-                // Removed llms and setLlms here as App does not need them:
-                // llms={llms}
-                // setLlms={setLlms}
               />
             }
           />
@@ -60,15 +99,12 @@ export default function ChatRoutes() {
                 setSelectedLLM={setSelectedLLM}
                 chatsData={chatsData}
                 setSelectedChatId={setSelectedChatId}
-                selectedChatId={selectedChatId}
+                selectedChatId={selectedChatId} // This will be null initially, unless a chat is persisted
                 setChatsData={setChatsData}
-                // Removed llms and setLlms here as App does not need them:
-                // llms={llms}
-                // setLlms={setLlms}
               />
             }
           />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} /> {/* Use replace to avoid bad history states */}
         </Routes>
       </div>
     </Router>

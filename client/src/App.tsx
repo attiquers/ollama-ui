@@ -3,9 +3,6 @@ import {
   useRef,
   useState,
   useCallback,
-  // Removed unused type imports:
-  // type Dispatch,
-  // type SetStateAction,
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -15,12 +12,17 @@ import CurrentHistory from '@/components/CurrentHistory';
 interface Message {
   user: string;
   ai: string;
+  image?: string;
+  document?: {
+    name: string;
+    content?: string;
+  };
 }
 
 interface ChatData {
   _id: string;
   name: string;
-  messages: Array<{ user: string; ai: string; datetime?: string }>;
+  messages: Array<{ user: string; ai: string; datetime?: string; image?: string; document?: { name: string; content?: string } }>;
   datetime: string;
 }
 
@@ -31,9 +33,6 @@ interface AppProps {
   setSelectedChatId: (id: string | null) => void;
   selectedChatId: string | null;
   setChatsData: (data: ChatData[]) => void;
-  // Removed llms and setLlms from AppProps as App does not use them directly:
-  // llms: string[];
-  // setLlms: Dispatch<SetStateAction<string[]>>;
 }
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -45,9 +44,6 @@ export default function App({
   setSelectedChatId,
   selectedChatId,
   setChatsData,
-  // Removed llms and setLlms from destructuring as they are not used in App:
-  // llms,
-  // setLlms,
 }: AppProps) {
   const [currentChatMessages, setCurrentChatMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -66,7 +62,12 @@ export default function App({
     const chat = chatsData.find(c => c._id === selectedChatId);
     if (chat) {
       console.log('[App useEffect] Found chat data for ID:', selectedChatId);
-      setCurrentChatMessages(chat.messages.map(m => ({ user: m.user, ai: m.ai || '' })));
+      setCurrentChatMessages(chat.messages.map(m => ({
+        user: m.user,
+        ai: m.ai || '',
+        image: m.image,
+        document: m.document
+      })));
       setHasInteracted(true);
     } else if (!selectedChatId) {
       console.log('[App useEffect] No chat selected, clearing messages.');
@@ -107,59 +108,75 @@ export default function App({
     console.log('[App stopGeneration] Stopping generation...');
     abortControllerRef.current?.abort();
     setIsLoading(false);
+    abortControllerRef.current = null; // Clear the ref after aborting
   }, []);
 
   const sendMessage = useCallback(
-    async (text: string) => {
-      console.log('[App sendMessage] Message received:', text);
+    async (text: string, image?: string, documentFile?: File) => {
+      console.log('[App sendMessage] Message received:', text, 'Image present:', !!image, 'Document present:', !!documentFile);
       if (!selectedLLM) {
         alert('Please select an LLM first!');
         console.warn('[App sendMessage] No LLM selected.');
         return;
       }
-      if (isLoading) {
-        console.log('[App sendMessage] Already loading, stopping current generation.');
-        stopGeneration();
-      }
 
-      setIsLoading(true);
+      // If a generation is already in progress, stop it before starting a new one
+      if (isLoading && abortControllerRef.current) {
+        console.log('[App sendMessage] An AI generation is already in progress. Aborting previous and starting new.');
+        stopGeneration(); // This will also set isLoading to false and clear abortControllerRef
+      }
+      
+      setIsLoading(true); // Set loading for the new request
       setHasInteracted(true);
 
-      const newUserMsg: Message = { user: text, ai: '' };
+      const newUserMsg: Message = {
+        user: text,
+        ai: '',
+        image: image,
+        document: documentFile ? { name: documentFile.name } : undefined
+      };
       setCurrentChatMessages(prev => [...prev, newUserMsg]);
       console.log('[App sendMessage] Added new user message to UI:', newUserMsg);
 
       const abortCtrl = new AbortController();
-      abortControllerRef.current = abortCtrl;
-      console.log('[App sendMessage] AbortController created.');
+      abortControllerRef.current = abortCtrl; // Set the new abort controller
+      console.log('[App sendMessage] New AbortController created for this request.');
 
-      const backendMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+      const backendMessages: Array<{ role: 'user' | 'assistant'; content: string; images?: string[] }> = [];
       currentChatMessages.forEach(m => {
-        backendMessages.push({ role: 'user', content: m.user });
+        const userMessage: { role: 'user'; content: string; images?: string[] } = { role: 'user', content: m.user };
+        if (m.image) {
+          userMessage.images = [m.image.split(',')[1]];
+        }
+        backendMessages.push(userMessage);
         if (m.ai.trim()) backendMessages.push({ role: 'assistant', content: m.ai });
       });
-      backendMessages.push({ role: 'user', content: text });
+
+      const currentUserMessage: { role: 'user'; content: string; images?: string[] } = { role: 'user', content: text };
+      if (image) {
+        currentUserMessage.images = [image.split(',')[1]];
+      }
+      backendMessages.push(currentUserMessage);
       console.log('[App sendMessage] Backend messages prepared. Current selectedChatId for request:', selectedChatId);
+
+      const formData = new FormData();
+      formData.append('model', selectedLLM);
+      formData.append('messages', JSON.stringify(backendMessages));
+      if (selectedChatId) {
+        formData.append('chatId', selectedChatId);
+      }
+      if (documentFile) {
+        formData.append('document', documentFile, documentFile.name);
+      }
 
       try {
         const res = await fetch(`${API_BASE_URL}/ollama/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: selectedLLM,
-            messages: backendMessages,
-            stream: true,
-            chatId: selectedChatId,
-          }),
+          body: formData,
           signal: abortCtrl.signal,
         });
 
         console.log('[App sendMessage] Fetch request sent. Response status:', res.status);
-
-        console.log('[App sendMessage] All response headers (as seen by JS):');
-        for (const [key, value] of res.headers.entries()) {
-          console.log(`    ${key}: ${value}`);
-        }
 
         const returnedChatId = res.headers.get('X-Chat-ID');
         console.log('[App sendMessage] X-Chat-ID header received:', returnedChatId);
@@ -203,6 +220,7 @@ export default function App({
                 ai += json.message.content;
                 setCurrentChatMessages(prev => {
                   const upd = [...prev];
+                  // Ensure we are updating the last message added by this specific send action
                   if (upd.length) upd[upd.length - 1].ai = ai;
                   return upd;
                 });
@@ -215,7 +233,7 @@ export default function App({
         }
       } catch (e: any) {
         if (e.name === 'AbortError') {
-          console.log('[App sendMessage] Request aborted by user.');
+          console.log('[App sendMessage] Request aborted by user (new message sent).');
         } else {
           console.error('[App sendMessage] Error during message sending:', e);
           setCurrentChatMessages(prev => {
@@ -227,7 +245,7 @@ export default function App({
         }
       } finally {
         setIsLoading(false);
-        abortControllerRef.current = null;
+        abortControllerRef.current = null; // Clear the ref, indicating no active request
         console.log('[App sendMessage] Finalizing, refetching chats...');
         refetchChats();
       }
@@ -241,7 +259,7 @@ export default function App({
         <div className="flex flex-col items-center justify-end pb-20 w-[60vw] min-h-screen relative">
           <CurrentHistory
             messages={currentChatMessages.flatMap(m => [
-              { role: 'user' as const, content: m.user },
+              { role: 'user' as const, content: m.user, image: m.image, document: m.document },
               { role: 'assistant' as const, content: m.ai, blinking: isLoading && !m.ai },
             ])}
           />

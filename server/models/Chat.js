@@ -9,6 +9,14 @@ const messageSchema = new mongoose.Schema({
     type: String,
     required: false, // AI response can be empty initially or partially
   },
+  image: { // Existing image field
+    type: String,
+    required: false,
+  },
+  document: { // NEW: Field for document
+    name: { type: String, required: false }, // Original file name
+    content: { type: String, required: false }, // Extracted text content
+  },
   datetime: {
     type: Date,
     default: Date.now,

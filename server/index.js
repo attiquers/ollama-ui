@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const mongoose = require('mongoose');
+const multer = require('multer'); // NEW: Import multer
 
 const chatsRoutes = require('./routes/chats');
 const ollamaRoutes = require('./routes/ollama');
@@ -22,10 +23,8 @@ mongoose.connect(mongoUri, {
 // ✅ CORS config for local development
 const allowedOrigins = [
   'http://localhost:3000',
-  'http://localhost:5173',        // ✅ ADD THIS
+  'http://localhost:5173',
 ];
-
-
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -37,26 +36,24 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Chat-ID'],
-  exposedHeaders: ['X-Chat-ID'], // <--- THIS IS THE NEW CRITICAL CHANGE
+  exposedHeaders: ['X-Chat-ID'],
   credentials: true
 };
 
 // ✅ Middleware
 app.use(cors(corsOptions));
-app.use(express.json());
-
-// 🔍 Debug: Log incoming origins
-app.use((req, res, next) => {
-  console.log('🌐 Incoming request from:', req.headers.origin, 'Path:', req.path);
-  next();
-});
+// NEW: Multer will parse multipart form data. No need for express.json() for file uploads.
+// Express.json() is still needed for other JSON requests if you have any.
+// If all your POST requests to /ollama/chat will be multipart, you might not need express.json() here for this route.
+app.use(express.json()); // Keep this for other JSON payloads
+app.use(express.urlencoded({ extended: true })); // For URL-encoded bodies
 
 // ✅ Routes
 app.use('/api/chats', chatsRoutes);
-app.use('/api/ollama', ollamaRoutes);
+app.use('/api/ollama', ollamaRoutes); // Ollama routes will now handle file uploads via multer setup there
 
-// ✅ /generate endpoint (calls Ollama directly) - For direct generation, not used in main chat flow
-app.post('/generate', async (req, res) => {
+// Existing /api/generate route (if it's still used - note: /ollama/chat is preferred for new chats)
+app.post('/api/generate', async (req, res) => {
   const { model, prompt } = req.body;
   console.log('[GENERATE] Request received. Model:', model, 'Prompt length:', prompt?.length);
 
@@ -98,8 +95,6 @@ app.use((err, req, res, next) => {
   }
 });
 
-// ✅ Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-  console.log(`🛠  Docker internal access: http://backend:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
