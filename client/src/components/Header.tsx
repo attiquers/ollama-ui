@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react'; // Added type imports
 import axios from 'axios';
 
 interface HeaderProps {
   selectedLLM: string;
   setSelectedLLM: (llm: string) => void;
   llms: string[];
+  setOllamaModelError: Dispatch<SetStateAction<string | null>>; // ADDED: Prop for setting model errors
 }
 
 // Define the base API URL using Vite's environment variable.
@@ -12,7 +13,7 @@ interface HeaderProps {
 // The fallback is for local development outside Docker.
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
 
-export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProps) {
+export default function Header({ selectedLLM, setSelectedLLM, llms, setOllamaModelError }: HeaderProps) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   return (
@@ -42,10 +43,12 @@ export default function Header({ selectedLLM, setSelectedLLM, llms }: HeaderProp
                   setSelectedLLM(llm);
                   setDropdownOpen(false);
                   try {
-                    // CHANGED: Use API_BASE_URL for API calls
+                    // Use API_BASE_URL for API calls
                     await axios.post(`${API_BASE_URL}/ollama/start`, { model: llm });
-                  } catch (err) {
-                    alert('Failed to start Ollama model.'); // Note: alert() is generally discouraged for better UX
+                    setOllamaModelError(null); // Clear error on successful model start
+                  } catch (err: any) { // Explicitly type err as any for message access
+                    console.error('Failed to start Ollama model:', err);
+                    setOllamaModelError(`Failed to start Ollama model: ${err.message || 'Unknown error'}. Check server logs.`); // Set error
                   }
                 }}
               >

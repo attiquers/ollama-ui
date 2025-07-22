@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { FiSend, FiImage, FiPaperclip, FiStopCircle, FiX, FiPlus } from 'react-icons/fi'; // Import FiPlus
 
 interface ChatInputProps {

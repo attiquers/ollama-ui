@@ -3,6 +3,8 @@ import {
   useRef,
   useState,
   useCallback,
+  type Dispatch, // Added type import
+  type SetStateAction, // Added type import
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -33,6 +35,8 @@ interface AppProps {
   setSelectedChatId: (id: string | null) => void;
   selectedChatId: string | null;
   setChatsData: (data: ChatData[]) => void;
+  ollamaModelError: string | null; // ADDED: Prop for displaying model errors
+  setOllamaModelError: Dispatch<SetStateAction<string | null>>; // ADDED: Prop for setting model errors
 }
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -44,6 +48,8 @@ export default function App({
   setSelectedChatId,
   selectedChatId,
   setChatsData,
+  ollamaModelError, // Destructure new prop
+  setOllamaModelError, // Destructure new prop
 }: AppProps) {
   const [currentChatMessages, setCurrentChatMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -137,9 +143,11 @@ export default function App({
     async (text: string, image?: string, documentFile?: File) => {
       console.log('[App sendMessage] Message received:', text, 'Image present:', !!image, 'Document present:', !!documentFile);
       if (!selectedLLM) {
-        alert('Please select an LLM first!');
+        setOllamaModelError('Please select an LLM first!'); // Use setter to show error
         console.warn('[App sendMessage] No LLM selected.');
         return;
+      } else {
+        setOllamaModelError(null); // Clear error if LLM is selected
       }
 
       // If a generation is already in progress due to a *previous* message in the *same* chat,
@@ -259,6 +267,7 @@ export default function App({
           console.log('[App sendMessage] Request aborted by user (new message sent or chat switched).');
         } else {
           console.error('[App sendMessage] Error during message sending:', e);
+          setOllamaModelError('Failed to get response from LLM: ' + e.message); // Set error here
           setCurrentChatMessages(prev => {
             const upd = [...prev];
             if (upd.length && !upd[upd.length - 1].ai)
@@ -273,7 +282,7 @@ export default function App({
         refetchChats();
       }
     },
-    [selectedLLM, selectedChatId, currentChatMessages, isLoading, refetchChats, setSelectedChatId, navigate, stopGeneration]
+    [selectedLLM, selectedChatId, currentChatMessages, isLoading, refetchChats, setSelectedChatId, navigate, stopGeneration, setOllamaModelError] // Added setOllamaModelError to dependencies
   );
 
   return (
@@ -295,6 +304,9 @@ export default function App({
             <h2 className="text-4xl font-extrabold text-white mb-2">
               Private, Fast, Secure
             </h2>
+            {ollamaModelError && ( // Display ollamaModelError if present
+              <p className="text-red-500 mt-4 text-center">{ollamaModelError}</p>
+            )}
           </div>
           <div ref={chatEndRef} />
         </div>
