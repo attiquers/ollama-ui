@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'rea
 import App from './App';
 import Header from './components/Header';
 import SideBar from './components/SideBar';
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react'; // Ensure useState and useEffect are imported
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -18,6 +18,8 @@ export default function ChatRoutes() {
     // Initialize selectedChatId from localStorage on first render
     return localStorage.getItem('selectedChatId') || null;
   });
+  // NEW: State for Ollama model errors
+  const [ollamaModelError, setOllamaModelError] = useState<string | null>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/ollama/list`)
@@ -25,6 +27,8 @@ export default function ChatRoutes() {
       .catch(e => {
         console.error('[ROUTES] error loading models', e);
         setLlms([]);
+        // NEW: Set model error if listing fails
+        setOllamaModelError('Failed to load Ollama models list. Is Ollama running?');
       });
 
     // Fetch chats and try to set selectedChatId from localStorage or first chat
@@ -73,7 +77,13 @@ export default function ChatRoutes() {
   return (
     <Router>
       <div className='fixed top-0 left-1/2 z-50 transform -translate-x-1/2'>
-        <Header selectedLLM={selectedLLM} setSelectedLLM={setSelectedLLM} llms={llms} />
+        {/* NEW: Pass ollamaModelError and setOllamaModelError to Header */}
+        <Header
+          selectedLLM={selectedLLM}
+          setSelectedLLM={setSelectedLLM}
+          llms={llms}
+          setOllamaModelError={setOllamaModelError} // Pass setter to Header
+        />
       </div>
       <div className="flex flex-row flex-1">
         <SideBar setSelectedChatId={setSelectedChatId} selectedChatId={selectedChatId} chats={chatsData} />
@@ -86,8 +96,10 @@ export default function ChatRoutes() {
                 setSelectedLLM={setSelectedLLM}
                 chatsData={chatsData}
                 setSelectedChatId={setSelectedChatId}
-                selectedChatId={selectedChatId} // This will be managed by App component from URL
+                selectedChatId={selectedChatId}
                 setChatsData={setChatsData}
+                ollamaModelError={ollamaModelError} // NEW: Pass ollamaModelError to App
+                setOllamaModelError={setOllamaModelError} // NEW: Pass setter to App
               />
             }
           />
@@ -99,12 +111,14 @@ export default function ChatRoutes() {
                 setSelectedLLM={setSelectedLLM}
                 chatsData={chatsData}
                 setSelectedChatId={setSelectedChatId}
-                selectedChatId={selectedChatId} // This will be null initially, unless a chat is persisted
+                selectedChatId={selectedChatId}
                 setChatsData={setChatsData}
+                ollamaModelError={ollamaModelError} // NEW: Pass ollamaModelError to App
+                setOllamaModelError={setOllamaModelError} // NEW: Pass setter to App
               />
             }
           />
-          <Route path="*" element={<Navigate to="/" replace />} /> {/* Use replace to avoid bad history states */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </Router>

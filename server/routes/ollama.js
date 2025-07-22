@@ -53,6 +53,67 @@ router.get('/list', async (_, res) => {
   }
 });
 
+// NEW ENDPOINT: /ollama/start
+router.post('/start', async (req, res) => {
+  const { model } = req.body;
+  console.log(`\n[${new Date().toISOString()}] [OLLAMA-START] Request to start/warm up model: ${model}`);
+
+  if (!model) {
+    console.warn(`[${new Date().toISOString()}] [OLLAMA-START] 400 - Model name missing.`);
+    return res.status(400).json({ error: 'Model name is required to start Ollama model.' });
+  }
+
+  try {
+    // Attempt a simple chat completion to "warm up" or check if the model can be loaded
+    const ollamaRes = await axios.post(
+      `${OLLAMA_API_BASE_URL}/api/chat`,
+      {
+        model: model,
+        messages: [{ role: "user", content: "hi" }], // Dummy message to trigger model load
+        stream: false // We don't need a stream for just starting
+      },
+      { timeout: 30000 } // Set a timeout for the request
+    );
+
+    // Check for non-2xx status from Ollama's API response
+    if (ollamaRes.status < 200 || ollamaRes.status >= 300) {
+      console.error(`[${new Date().toISOString()}] [OLLAMA-START] Ollama API returned non-2xx status (${ollamaRes.status}).`);
+      let errorMsg = ollamaRes.data?.error || `Ollama API error with status: ${ollamaRes.status}`;
+      return res.status(500).json({ error: `Failed to start Ollama model: ${errorMsg}` });
+    }
+
+    console.log(`[${new Date().toISOString()}] [OLLAMA-START] Model '${model}' appears to be running/loaded successfully.`);
+    res.status(200).json({ message: `Model '${model}' started successfully.` });
+
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] [OLLAMA-START] Error trying to start Ollama model '${model}':`, error.message);
+
+    let clientErrorMessage = 'Failed to start Ollama model. Communication error with Ollama service.';
+
+    if (error.response && error.response.data) {
+      // If Ollama returned an error response
+      let ollamaErrorData = error.response.data;
+      if (typeof ollamaErrorData === 'object' && ollamaErrorData.error) {
+          clientErrorMessage = ollamaErrorData.error;
+      } else if (typeof ollamaErrorData === 'string') {
+          clientErrorMessage = ollamaErrorData;
+      }
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      clientErrorMessage = 'Failed to start Ollama model: Ollama service is not running or unreachable.';
+    } else if (error.message.includes("model '") && error.message.includes("' not found")) {
+      clientErrorMessage = `Failed to start Ollama model: Model '${model}' not found.`;
+    } else if (error.message.includes("failed to get model")) {
+        clientErrorMessage = `Failed to start Ollama model: There was an issue with the selected model.`;
+    } else if (error.message.includes("pulling")) {
+        clientErrorMessage = `Failed to start Ollama model: Model '${model}' is still pulling or failed to pull.`;
+    }
+
+
+    res.status(error.response?.status || 500).json({ error: clientErrorMessage });
+  }
+});
+
+
 router.post('/chat', upload.single('document'), async (req, res) => {
   console.log(`\n[${new Date().toISOString()}] [OLLAMA-CHAT] STARTING Request processing.`);
 
@@ -133,12 +194,91 @@ router.post('/chat', upload.single('document'), async (req, res) => {
     console.log(`[${new Date().toISOString()}] [OLLAMA-CHAT] Headers flushed to client. X-Chat-ID set to: ${chat._id.toString()}`);
 
     const ollamaApiCallStartTime = Date.now();
-    const ollamaRes = await axios.post(
-      `${OLLAMA_API_BASE_URL}/api/chat`,
-      { model, messages, stream: true },
-      { responseType: 'stream' }
-    );
-    console.log(`[${new Date().toISOString()}] [OLLAMA-CHAT] Ollama API request sent. Status: ${ollamaRes.status}. Time to connect: ${Date.now() - ollamaApiCallStartTime}ms.`);
+    let ollamaRes;
+    try {
+        ollamaRes = await axios.post(
+            `${OLLAMA_API_BASE_URL}/api/chat`,
+            { model, messages, stream: true },
+            { responseType: 'stream' }
+        );
+        console.log(`[${new Date().toISOString()}] [OLLAMA-CHAT] Ollama API request sent. Status: ${ollamaRes.status}. Time to connect: ${Date.now() - ollamaApiCallStartTime}ms.`);
+
+        // NEW: Check for non-2xx status from Ollama API
+        if (ollamaRes.status < 200 || ollamaRes.status >= 300) {
+            let errorBody = '';
+            // Read the error stream from Ollama to get the actual error message
+            await new Promise((resolve, reject) => {
+                ollamaRes.data.on('data', chunk => {
+                    errorBody += chunk.toString();
+                });
+                ollamaRes.data.on('end', () => {
+                    console.error(`[${new Date().toISOString()}] [OLLAMA-CHAT] Ollama API returned non-2xx status (${ollamaRes.status}). Error body:`, errorBody);
+                    // Attempt to parse JSON error from Ollama
+                    try {
+                        const errorJson = JSON.parse(errorBody);
+                        reject(new Error(errorJson.error || `Ollama API error: ${ollamaRes.status}`));
+                    } catch {
+                        reject(new Error(errorBody || `Ollama API error: ${ollamaRes.status}`));
+                    }
+                    resolve();
+                });
+                ollamaRes.data.on('error', err => {
+                    console.error(`[${new Date().toISOString()}] [OLLAMA-CHAT] Error reading Ollama error stream:`, err.message);
+                    reject(new Error(`Ollama API stream error: ${err.message}`));
+                    resolve();
+                });
+            });
+        }
+
+    } catch (ollamaAxiosError) {
+        // This catches network errors or axios throwing for non-2xx status
+        console.error(`[${new Date().toISOString()}] [OLLAMA-CHAT] Error connecting to Ollama or Ollama returned an error response:`, ollamaAxiosError.message);
+        
+        let clientErrorMessage = 'Failed to communicate with Ollama service.';
+        if (ollamaAxiosError.response && ollamaAxiosError.response.data) {
+            // If axios got a response (not just a network error)
+            let ollamaErrorData = '';
+            // It might be a stream, try to read it
+            if (ollamaAxiosError.response.data.on) { // Check if it's a stream
+                await new Promise(resolve => {
+                    ollamaAxiosError.response.data.on('data', chunk => ollamaErrorData += chunk.toString());
+                    ollamaAxiosError.response.data.on('end', resolve);
+                    ollamaAxiosError.response.data.on('error', resolve); // resolve even on error to not hang
+                });
+                try {
+                    const parsed = JSON.parse(ollamaErrorData);
+                    clientErrorMessage = parsed.error || ollamaErrorData;
+                } catch {
+                    clientErrorMessage = ollamaErrorData || clientErrorMessage;
+                }
+            } else if (typeof ollamaAxiosError.response.data === 'string') {
+                clientErrorMessage = ollamaAxiosError.response.data;
+            } else if (ollamaAxiosError.response.data.error) {
+                clientErrorMessage = ollamaAxiosError.response.data.error;
+            }
+        } else if (ollamaAxiosError.code === 'ECONNREFUSED' || ollamaAxiosError.code === 'ENOTFOUND') {
+            clientErrorMessage = 'Ollama service is not running or unreachable.';
+        }
+
+        // Check if the error message from Ollama specifically indicates model issues
+        if (clientErrorMessage.includes("model '") && clientErrorMessage.includes("' not found")) {
+            clientErrorMessage = `Failed to start Ollama model: Model '${model}' not found.`;
+        } else if (clientErrorMessage.includes("failed to get model")) {
+            clientErrorMessage = `Failed to start Ollama model: There was an issue with the selected model.`;
+        } else if (clientErrorMessage.includes("pulling")) {
+            clientErrorMessage = `Failed to start Ollama model: Model '${model}' is still pulling or failed to pull.`;
+        }
+
+        if (!res.headersSent) {
+            // Use 500 for backend processing errors, 400 for bad model/client input to Ollama
+            res.status(ollamaAxiosError.response?.status || 500).json({ error: clientErrorMessage });
+        } else if (!res.writableEnded) {
+            res.write(JSON.stringify({ error: clientErrorMessage }) + '\n');
+            res.end();
+        }
+        console.log(`[${new Date().toISOString()}] [OLLAMA-CHAT] FINISHED Request processing WITH OLLAMA API ERROR.`);
+        return; // IMPORTANT: stop further processing if Ollama API call failed
+    }
 
     const saveAIResponse = async (errorMsg = '') => {
       if (hasSavedFinalResponse) {

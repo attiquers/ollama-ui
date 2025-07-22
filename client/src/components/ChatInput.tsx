@@ -171,7 +171,7 @@ export default function ChatInput({ onSend, isLoading, onStop }: ChatInputProps)
 
         {/* Attachment Options Dropdown */}
         {showAttachmentOptions && (
-          <div className="attachment-options absolute bottom-full left-0 mb-2 w-48 bg-[#282A2C] border border-gray-600 rounded-md shadow-lg z-10">
+          <div className="attachment-options absolute bottom-full left-0 mb-2  bg-[#282A2C] border border-gray-600 rounded-md shadow-lg z-10">
             <button
               type="button"
               onClick={handleImageUploadClick}
@@ -196,7 +196,7 @@ export default function ChatInput({ onSend, isLoading, onStop }: ChatInputProps)
           onKeyDown={handleKeyDown}
           placeholder="Type your message or add a file..."
           rows={1}
-          className="flex-grow max-h-[20vh] p-2 border-none rounded-full text-white resize-none overflow-y-auto min-h-[44px] focus:outline-none bg-transparent"
+          className="flex-grow max-h-[20vh] p-2 border-none rounded-full text-white resize-none overflow-y-auto min-h-[44px] focus:outline-none bg-transparent text-lg" // Added text-2xl here
           style={{ lineHeight: '1.5' }}
         />
 

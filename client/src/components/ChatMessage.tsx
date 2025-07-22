@@ -121,9 +121,9 @@ export default function ChatMessage({ message }: { message: Message }) {
         </code>
       );
     },
-    h1: ({ node, ...props }) => <h1 className="text-3xl font-bold mb-4 mt-6 text-white" {...props} />,
-    h2: ({ node, ...props }) => <h2 className="text-2xl font-semibold mb-3 mt-5 text-white" {...props} />,
-    h3: ({ node, ...props }) => <h3 className="text-xl font-medium mb-2 mt-4 text-white" {...props} />,
+    h1: ({ node, ...props }) => <h1 className="text-2xl font-bold mb-4 mt-6 text-white" {...props} />,
+    h2: ({ node, ...props }) => <h2 className="text-xl font-semibold mb-3 mt-5 text-white" {...props} />,
+    h3: ({ node, ...props }) => <h3 className="text-lg font-medium mb-2 mt-4 text-white" {...props} />,
     ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
     ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 last:mb-0 text-gray-100" {...props} />,
     a: ({ node, ...props }) => <a className="text-blue-400 hover:underline" {...props} />,
@@ -134,12 +134,12 @@ export default function ChatMessage({ message }: { message: Message }) {
 
   return (
     <div
-      className={`p-3 mb-6 my-2 rounded-xl text-xl font-sans relative group ${messageContainerClasses}`}
+      className={`p-3 mb-6 my-2 rounded-xl text-lg font-sans relative group ${messageContainerClasses}`}
     >
       {message.blinking ? (
         <div className="flex items-center space-x-2">
           <div className="w-3 h-3 rounded-full bg-gray-400 animate-pulse"></div>
-          <span className="text-gray-400">Thinking...</span>
+          <span className="text-gray-400">Generating...</span>
         </div>
       ) : (
         <>

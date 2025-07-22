@@ -51,7 +51,18 @@ export default function App({
   const [hasInteracted, setHasInteracted] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const prevSelectedChatIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
+
+  // Define stopGeneration *before* any useEffect that depends on it
+  const stopGeneration = useCallback(() => {
+    console.log('[App stopGeneration] Stopping generation...');
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null; // Clear the ref after aborting
+    }
+    setIsLoading(false); // Ensure loading state is false
+  }, []); // No dependencies here since abortControllerRef and setIsLoading are states/refs
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -77,6 +88,23 @@ export default function App({
       console.log('[App useEffect] Chat data not found for ID:', selectedChatId);
     }
   }, [selectedChatId, chatsData]);
+
+  // This useEffect now comes after stopGeneration is defined
+  useEffect(() => {
+    // If there was a previous chat selected and it's different from the current one,
+    // AND there's an ongoing loading process, then abort.
+    // This specifically prevents aborting the *first* message of a *new* chat.
+    if (
+      isLoading &&
+      abortControllerRef.current &&
+      prevSelectedChatIdRef.current !== null && // Ensures we had a chat selected previously
+      prevSelectedChatIdRef.current !== selectedChatId // Ensures the chat actually changed
+    ) {
+      console.log('[App useEffect] selectedChatId changed, aborting current generation due to chat switch.');
+      stopGeneration();
+    }
+    prevSelectedChatIdRef.current = selectedChatId; // Update the ref for the next render
+  }, [selectedChatId, isLoading, stopGeneration]); // stopGeneration is now accessible
 
   useEffect(() => {
     const saved = localStorage.getItem('selectedLLM');
@@ -104,12 +132,6 @@ export default function App({
     }
   }, [setChatsData]);
 
-  const stopGeneration = useCallback(() => {
-    console.log('[App stopGeneration] Stopping generation...');
-    abortControllerRef.current?.abort();
-    setIsLoading(false);
-    abortControllerRef.current = null; // Clear the ref after aborting
-  }, []);
 
   const sendMessage = useCallback(
     async (text: string, image?: string, documentFile?: File) => {
@@ -120,12 +142,13 @@ export default function App({
         return;
       }
 
-      // If a generation is already in progress, stop it before starting a new one
+      // If a generation is already in progress due to a *previous* message in the *same* chat,
+      // stop it before starting a new one. This is distinct from switching chats.
       if (isLoading && abortControllerRef.current) {
-        console.log('[App sendMessage] An AI generation is already in progress. Aborting previous and starting new.');
+        console.log('[App sendMessage] An AI generation is already in progress for the current chat. Aborting previous and starting new.');
         stopGeneration(); // This will also set isLoading to false and clear abortControllerRef
       }
-      
+
       setIsLoading(true); // Set loading for the new request
       setHasInteracted(true);
 
@@ -139,7 +162,7 @@ export default function App({
       console.log('[App sendMessage] Added new user message to UI:', newUserMsg);
 
       const abortCtrl = new AbortController();
-      abortControllerRef.current = abortCtrl; // Set the new abort controller
+      abortControllerRef.current = abortCtrl; // Set the new abort controller for this request
       console.log('[App sendMessage] New AbortController created for this request.');
 
       const backendMessages: Array<{ role: 'user' | 'assistant'; content: string; images?: string[] }> = [];
@@ -233,7 +256,7 @@ export default function App({
         }
       } catch (e: any) {
         if (e.name === 'AbortError') {
-          console.log('[App sendMessage] Request aborted by user (new message sent).');
+          console.log('[App sendMessage] Request aborted by user (new message sent or chat switched).');
         } else {
           console.error('[App sendMessage] Error during message sending:', e);
           setCurrentChatMessages(prev => {
